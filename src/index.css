@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-sv-bg text-slate-100 antialiased;
+}
+
+.app-root {
+  @apply min-h-screen flex;
+}
+
+.app-sidebar {
+  @apply w-64 bg-sv-surface border-r border-slate-800 flex flex-col;
+}
+
+.app-content {
+  @apply flex-1 min-h-screen bg-sv-bg;
+}

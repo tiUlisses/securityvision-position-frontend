@@ -1,0 +1,251 @@
+.incidents-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .incidents-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+  }
+  
+  .incidents-header h1 {
+    margin: 0;
+  }
+  
+  .incidents-header .subtitle {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+    color: #888;
+  }
+  
+  .incidents-filters {
+    display: flex;
+    gap: 12px;
+  }
+  
+  .incidents-filters .field {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.85rem;
+  }
+  
+  .incidents-filters label {
+    margin-bottom: 4px;
+    color: #555;
+  }
+  
+  .table-wrapper {
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    overflow: hidden;
+  }
+  
+  .incidents-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  
+  .incidents-table th,
+  .incidents-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .incidents-table th {
+    background: #f7f7f7;
+    text-align: left;
+  }
+  
+  .incidents-row {
+    cursor: pointer;
+  }
+  
+  .incidents-row:hover {
+    background: #fafafa;
+  }
+  
+  .actions-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  /* Badges */
+  
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  
+  .badge-status-open {
+    background: #e3f2fd;
+    color: #1565c0;
+  }
+  
+  .badge-status-in_progress {
+    background: #fff3e0;
+    color: #ef6c00;
+  }
+  
+  .badge-status-resolved {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+  
+  .badge-status-false_positive {
+    background: #f3e5f5;
+    color: #6a1b9a;
+  }
+  
+  .badge-status-canceled {
+    background: #eeeeee;
+    color: #555;
+  }
+  
+  .badge-severity-low {
+    background: #e0f7fa;
+    color: #006064;
+  }
+  
+  .badge-severity-medium {
+    background: #fffde7;
+    color: #f9a825;
+  }
+  
+  .badge-severity-high {
+    background: #ffebee;
+    color: #c62828;
+  }
+  
+  .badge-severity-critical {
+    background: #ffebee;
+    color: #b71c1c;
+    border: 1px solid #b71c1c;
+  }
+  
+  /* Botões simples */
+  
+  .btn {
+    border: none;
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  
+  .btn-primary {
+    background: #1976d2;
+    color: #fff;
+  }
+  
+  .btn-secondary {
+    background: #9e9e9e;
+    color: #fff;
+  }
+  
+  .btn-danger {
+    background: #d32f2f;
+    color: #fff;
+  }
+  
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  
+  /* Modal */
+  
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 640px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .modal-incident-details .modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+  }
+  
+  .modal-header,
+  .modal-footer {
+    padding: 12px 16px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .modal-footer {
+    border-top: 1px solid #eee;
+    border-bottom: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  
+  .modal-footer-label {
+    font-size: 0.85rem;
+    color: #555;
+  }
+  
+  .modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .modal-close {
+    background: transparent;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+  
+  .details-section h3 {
+    margin: 0 0 4px;
+  }
+  
+  .badges-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  
+  .description {
+    margin-top: 4px;
+  }
+  
+  .details-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  
