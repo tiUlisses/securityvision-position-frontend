@@ -148,12 +148,16 @@ export interface Incident {
 export interface IncidentMessage {
   id: number;
   incident_id: number;
-  message_type: string; // "TEXT", "SYSTEM", "MEDIA"
-  content: string;
-  created_at: string;
+  message_type: "SYSTEM" | "COMMENT" | "MEDIA";
+  content: string | null;
 
-  media_type?: string | null; // "IMAGE" | "VIDEO" | "AUDIO" | "FILE"
-  media_url?: string | null;
-  media_thumb_url?: string | null;
-  media_name?: string | null;
+  media_type: "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | null;
+  media_url: string | null;
+  media_thumb_url: string | null;
+  media_name: string | null;
+
+  // 👇 novo campo
+  author_name?: string | null;
+
+  created_at: string;
 }
