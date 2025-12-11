@@ -813,41 +813,38 @@ const IncidentsPage: FC = () => {
                     )}
 
                   {messages.map((msg) => {
-                    const isSystem =
-                      msg.message_type === "SYSTEM";
-                    const isMedia =
-                      msg.message_type === "MEDIA";
+                  const isSystem = msg.message_type === "SYSTEM";
+                  const isMedia = msg.message_type === "MEDIA";
 
-                    const isRight = !isSystem; // operador/mídia à direita
+                  const isRight = !isSystem; // operador/mídia à direita
 
-                    const bubbleBase =
-                      "max-w-[80%] rounded-2xl px-2.5 py-1.5 text-[11px] shadow-sm";
-                    const bubbleClasses = isSystem
-                      ? `${bubbleBase} bg-slate-800 text-slate-100`
-                      : `${bubbleBase} bg-sv-accent text-white`;
+                  const bubbleBase =
+                    "max-w-[80%] rounded-2xl px-2.5 py-1.5 text-[11px] shadow-sm";
+                  const bubbleClasses = isSystem
+                    ? `${bubbleBase} bg-slate-800 text-slate-100`
+                    : `${bubbleBase} bg-sv-accent text-white`;
 
-                    const wrapperClasses = isSystem
-                      ? "flex flex-col items-center"
-                      : "flex flex-col items-end";
+                  const wrapperClasses = isSystem
+                    ? "flex flex-col items-center"
+                    : "flex flex-col items-end";
 
-                    const authorLabel = isSystem
+                  // 👇 novo: usa author_name quando existir
+                  const authorLabel =
+                    msg.author_name && msg.author_name.trim().length > 0
+                      ? msg.author_name
+                      : isSystem
                       ? "Sistema"
                       : "Operador";
-
                     return (
-                      <div
-                        key={msg.id}
-                        className={wrapperClasses}
-                      >
-                        <div className="mb-0.5 flex items-center gap-2 text-[10px] text-slate-500">
-                          {!isRight && (
-                            <span>{authorLabel}</span>
-                          )}
-                          <span>{formatTime(msg.created_at)}</span>
-                          {isRight && (
-                            <span>{authorLabel}</span>
-                          )}
-                        </div>
+                    <div
+                      key={msg.id}
+                      className={wrapperClasses}
+                    >
+                      <div className="mb-0.5 flex items-center gap-2 text-[10px] text-slate-500">
+                        {!isRight && <span>{authorLabel}</span>}
+                        <span>{formatTime(msg.created_at)}</span>
+                        {isRight && <span>{authorLabel}</span>}
+                      </div>
 
                         <div className={bubbleClasses}>
                           {/* Mídia, se houver */}

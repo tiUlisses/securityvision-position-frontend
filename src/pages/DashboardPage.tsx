@@ -1,7 +1,14 @@
-// securityvision-position-frontend/src/pages/DashboardPage.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+// src/pages/DashboardPage.tsx
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  FormEvent,
+} from "react";
 import { apiGet, API_BASE_URL } from "../api/client";
 import type { Building, FloorPlan, Device, Person, Tag } from "../api/types";
+import { createIncidentFromEvent } from "../api/incidents";
 import Modal from "../components/common/Modal";
 
 type Gateway = Device;
@@ -112,6 +119,8 @@ interface CameraStatusInfo {
   rawStatus: string | null;
   lastStatusAt: string | null;
 }
+
+type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 // Deriva a origin do backend a partir do API_BASE_URL
 const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
@@ -245,6 +254,15 @@ export function DashboardPage() {
   const [selectedCameraEventId, setSelectedCameraEventId] = useState<
     number | null
   >(null);
+
+  // modal de criação de incidente a partir do evento da câmera
+  const [incidentModalOpen, setIncidentModalOpen] = useState(false);
+  const [incidentTitle, setIncidentTitle] = useState("");
+  const [incidentDescription, setIncidentDescription] = useState("");
+  const [incidentSeverity, setIncidentSeverity] =
+    useState<IncidentSeverity>("MEDIUM");
+  const [incidentSubmitting, setIncidentSubmitting] = useState(false);
+  const [incidentError, setIncidentError] = useState<string | null>(null);
 
   // ---- ALERTAS ----
   const [alerts, setAlerts] = useState<AlertEventDTO[]>([]);
@@ -567,24 +585,24 @@ export function DashboardPage() {
               lastStatusAt,
             };
 
-          // Apenas eventos de /events entram na UI
-          // - ignoramos /info (cambus_info)
-          // - ignoramos /status (cambus_status)
-          // - só fica o que realmente é analítico (faceCapture, FaceDetection etc.)
-          const filteredForUI = events.filter((evt) => {
-            const topicLower = (evt.topic || "").toLowerCase();
+            // Apenas eventos de /events entram na UI
+            // - ignoramos /info (cambus_info)
+            // - ignoramos /status (cambus_status)
+            // - só fica o que realmente é analítico (faceCapture, FaceDetection etc.)
+            const filteredForUI = events.filter((evt) => {
+              const topicLower = (evt.topic || "").toLowerCase();
 
-            // Só consideramos tópicos que terminam com "/events"
-            if (!topicLower.endsWith("/events")) return false;
+              // Só consideramos tópicos que terminam com "/events"
+              if (!topicLower.endsWith("/events")) return false;
 
-            // E garantimos que não é um evento de status (por segurança futura)
-            if (isStatusEvent(evt)) return false;
+              // E garantimos que não é um evento de status (por segurança futura)
+              if (isStatusEvent(evt)) return false;
 
-            return true;
-          });
+              return true;
+            });
 
-          uiEventsMap[cam.id] = filteredForUI;
-          latestIdByDevice[cam.id] = filteredForUI[0]?.id ?? null;
+            uiEventsMap[cam.id] = filteredForUI;
+            latestIdByDevice[cam.id] = filteredForUI[0]?.id ?? null;
           } catch (err) {
             console.error(`Erro ao carregar eventos da câmera ${cam.id}:`, err);
           }
@@ -882,6 +900,46 @@ export function DashboardPage() {
     setSelectedCameraEventId(null);
   };
 
+  const handleOpenIncidentModalFromEvent = () => {
+    if (!cameraSelectedEvent || !cameraModalCamera) return;
+
+    const payload = cameraSelectedPayload || {};
+    const analytic =
+      (payload.AnalyticType as string) ||
+      cameraSelectedEvent.analytic_type ||
+      "Evento de câmera";
+
+    const cameraName =
+      (cameraModalCamera as any).code ||
+      cameraModalCamera.name ||
+      `Câmera #${cameraModalCamera.id}`;
+
+    const tsLabel =
+      cameraSelectedTimestampLabel ||
+      (() => {
+        const raw =
+          payload.Timestamp ||
+          payload.timestamp ||
+          cameraSelectedEvent.occurred_at ||
+          cameraSelectedEvent.created_at;
+        if (!raw) return "";
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return "";
+        return d.toLocaleString();
+      })();
+
+    const defaultTitle = `[${analytic}] - ${cameraName}`;
+    const defaultDescription = tsLabel
+      ? `Incidente criado a partir do evento "${analytic}" da câmera ${cameraName} em ${tsLabel}.`
+      : `Incidente criado a partir do evento "${analytic}" da câmera ${cameraName}.`;
+
+    setIncidentTitle(defaultTitle);
+    setIncidentDescription(defaultDescription);
+    setIncidentSeverity("MEDIUM");
+    setIncidentError(null);
+    setIncidentModalOpen(true);
+  };
+
   // ---------------------------------------------------------------------------
   // Derivados do modal de câmera
   // ---------------------------------------------------------------------------
@@ -994,6 +1052,45 @@ export function DashboardPage() {
 
     return items;
   }, [cameraSelectedEvent, cameraSelectedPayload, meta, cameraModalCamera]);
+
+  // ---------------------------------------------------------------------------
+  // Handler de criação de incidente a partir do evento selecionado
+  // ---------------------------------------------------------------------------
+
+  const handleIncidentSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!cameraSelectedEvent) {
+      return;
+    }
+
+    setIncidentSubmitting(true);
+    setIncidentError(null);
+
+    try {
+      const incident = await createIncidentFromEvent({
+        device_event_id: cameraSelectedEvent.id,
+        title: incidentTitle.trim() || undefined,
+        description: incidentDescription.trim() || undefined,
+        severity: incidentSeverity,
+      });
+
+      setIncidentModalOpen(false);
+      setIncidentDescription("");
+      // Mantém o título pré-preenchido para reuso futuro, se desejar
+
+      alert(
+        `Incidente #${incident.id} criado com sucesso a partir deste evento.`
+      );
+    } catch (err: any) {
+      console.error("Erro ao criar incidente a partir do evento:", err);
+      setIncidentError(
+        err?.message ??
+          "Falha ao criar incidente a partir do evento. Verifique os dados e tente novamente."
+      );
+    } finally {
+      setIncidentSubmitting(false);
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // Render
@@ -1726,27 +1823,46 @@ export function DashboardPage() {
               <div className="md:w-3/5 border border-slate-800 rounded-lg bg-slate-950 text-xs flex flex-col">
                 {cameraSelectedEvent ? (
                   <>
-                    {/* Cabeçalho */}
-                    <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
-                      <div>
-                        <div className="text-[11px] font-semibold text-slate-100 uppercase tracking-wide">
-                          {cameraSelectedAnalytic || "Evento de câmera"}
+                    {/* Cabeçalho + ação de criar incidente */}
+                    <div className="border-b border-slate-800 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-[11px] font-semibold text-slate-100 uppercase tracking-wide">
+                            {cameraSelectedAnalytic || "Evento de câmera"}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {cameraSelectedTimestampLabel || "Sem timestamp"}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-400">
-                          {cameraSelectedTimestampLabel || "Sem timestamp"}
-                        </div>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            isFaceRecognized
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : "bg-sky-500/20 text-sky-300"
+                          }`}
+                        >
+                          {isFaceRecognized
+                            ? "Reconhecimento facial"
+                            : "Analítico de câmera"}
+                        </span>
                       </div>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          isFaceRecognized
-                            ? "bg-emerald-500/20 text-emerald-300"
-                            : "bg-sky-500/20 text-sky-300"
-                        }`}
-                      >
-                        {isFaceRecognized
-                          ? "Reconhecimento facial"
-                          : "Analítico de câmera"}
-                      </span>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] text-slate-400 pr-2">
+                          Deseja abrir um incidente e registrar o atendimento a
+                          partir deste evento?
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleOpenIncidentModalFromEvent}
+                          disabled={incidentSubmitting}
+                          className="rounded-md bg-sv-accent px-3 py-1 text-[11px] font-medium text-white hover:bg-sv-accentSoft disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {incidentSubmitting
+                            ? "Criando..."
+                            : "Criar incidente"}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex flex-1 flex-col gap-3 px-3 py-3">
@@ -1845,6 +1961,96 @@ export function DashboardPage() {
               </div>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Modal de criação de incidente a partir do evento selecionado */}
+      {incidentModalOpen && cameraSelectedEvent && (
+        <Modal
+          isOpen={incidentModalOpen}
+          title="Criar incidente a partir deste evento"
+          onClose={() => setIncidentModalOpen(false)}
+          maxWidthClass="max-w-lg"
+        >
+          <form onSubmit={handleIncidentSubmit} className="space-y-3 text-xs">
+            {incidentError && (
+              <div className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
+                {incidentError}
+              </div>
+            )}
+
+            <p className="text-[11px] text-slate-300">
+              O incidente será criado em status{" "}
+              <span className="font-semibold text-emerald-300">ABERTO</span>{" "}
+              vinculado automaticamente à câmera e ao evento selecionado.
+            </p>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-200">
+                Severidade
+              </label>
+              <select
+                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-50"
+                value={incidentSeverity}
+                onChange={(e) =>
+                  setIncidentSeverity(e.target.value as IncidentSeverity)
+                }
+              >
+                <option value="LOW">Baixa</option>
+                <option value="MEDIUM">Média</option>
+                <option value="HIGH">Alta</option>
+                <option value="CRITICAL">Crítica</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-200">
+                Título do incidente
+              </label>
+              <input
+                type="text"
+                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-50 placeholder:text-slate-500"
+                value={incidentTitle}
+                onChange={(e) => setIncidentTitle(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-200">
+                Descrição
+              </label>
+              <textarea
+                rows={4}
+                className="w-full resize-y rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-50 placeholder:text-slate-500"
+                value={incidentDescription}
+                onChange={(e) => setIncidentDescription(e.target.value)}
+              />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-slate-600 px-3 py-1.5 text-[11px] text-slate-200 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={() => setIncidentModalOpen(false)}
+                disabled={incidentSubmitting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="rounded-md bg-sv-accent px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-sv-accentSoft disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={
+                  incidentSubmitting ||
+                  !incidentTitle.trim() ||
+                  !cameraSelectedEvent
+                }
+              >
+                {incidentSubmitting
+                  ? "Criando incidente..."
+                  : "Criar incidente"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>
