@@ -11,11 +11,12 @@ import WebhooksPage from "./pages/WebhooksPage";
 import DevicesPage from "./pages/DevicesPage";
 import IncidentsPage from "./pages/IncidentsPage";
 import ReportsPage from "./pages/ReportsPage";
-
+import IncidentRulesPage from "./pages/IncidentRulesPage";
 import AuthPage from "./pages/AuthPage";
 import { useAuth } from "./contexts/AuthContext";
 
 type PageKey =
+  "incidents-rules"
   | "dashboard"
   | "incidents"
   | "devices"
@@ -62,6 +63,12 @@ function App() {
       label: "Alertas",
       onClick: () => setPage("alerts"),
       active: page === "alerts",
+    },
+    {
+      key: "incidents-rules",
+      label: "Regras de Incidentes",
+      onClick: () => setPage("incidents-rules"),
+      active: page === "incidents-rules",
     },
     {
       key: "reports",
@@ -127,6 +134,8 @@ function App() {
         return <WebhooksPage />;
       case "incidents":
         return <IncidentsPage />;
+      case "incidents-rules":
+        return <IncidentRulesPage />;
       default:
         return <DashboardPage />;
     }
