@@ -3,6 +3,25 @@ import { apiGet, apiPost, apiPatch, apiUploadForm } from "./client";
 import type { Incident, IncidentMessage } from "./types";
 
 
+// --- Criar incidente a partir de um DeviceEvent (câmera) ---
+
+export interface IncidentFromEventPayload {
+  device_event_id: number;
+  severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title?: string;
+  description?: string;
+  sla_minutes?: number;
+  tenant?: string;
+}
+
+export async function createIncidentFromEvent(payload: {
+  device_event_id: number;
+  title?: string;
+  description?: string;
+  severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+}): Promise<Incident> {
+  return apiPost<Incident>("/incidents/from-event", payload);
+}
 
 export async function uploadIncidentAttachment(
   incidentId: number,
