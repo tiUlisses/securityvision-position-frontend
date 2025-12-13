@@ -1,5 +1,5 @@
 // securityvision-position-frontend/src/pages/IncidentRulesPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPatch, apiDelete } from "../api/client";
 
 interface Device {
@@ -9,7 +9,24 @@ interface Device {
   type: string;
 }
 
+interface CameraGroup {
+  id: number;
+  name: string;
+  description?: string | null;
+}
+
+interface SupportGroup {
+  id: number;
+  name: string;
+  description?: string | null;
+  is_active: boolean;
+  // se quiser pode adicionar os outros campos (default_sla_minutes etc.)
+}
+
 type Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+type RuleScope = "GLOBAL" | "DEVICE" | "GROUP";
+type ScopeFilter = "ALL" | RuleScope;
 
 interface IncidentRule {
   id: number;
@@ -17,40 +34,56 @@ interface IncidentRule {
   enabled: boolean;
   analytic_type: string;
   device_id?: number | null;
+  camera_group_id?: number | null;
   tenant?: string | null;
   severity: Severity;
   title_template?: string | null;
   description_template?: string | null;
   assigned_to_user_id?: number | null;
+  assigned_group_id?: number | null; // 👈 agora exposto
   created_at: string;
   updated_at: string;
 }
+
+type NewRuleScope = "GLOBAL" | "DEVICE" | "GROUP";
 
 interface NewRuleForm {
   name: string;
   enabled: boolean;
   analytic_type: string;
-  device_id: string; // vamos guardar como string pra facilitar select
+  scope: NewRuleScope;
+  device_id: string;        // id em string pra usar em <select>
+  camera_group_id: string;  // id em string pra usar em <select>
   severity: Severity;
   title_template: string;
   description_template: string;
+  assigned_group_id: string; // 👈 string para o <select>
 }
 
 export function IncidentRulesPage() {
   const [rules, setRules] = useState<IncidentRule[]>([]);
   const [cameras, setCameras] = useState<Device[]>([]);
+  const [groups, setGroups] = useState<CameraGroup[]>([]);
+  const [supportGroups, setSupportGroups] = useState<SupportGroup[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("ALL");
 
   const [form, setForm] = useState<NewRuleForm>({
     name: "",
     enabled: true,
     analytic_type: "faceRecognized",
+    scope: "GLOBAL",
     device_id: "",
+    camera_group_id: "",
     severity: "MEDIUM",
     title_template: "",
     description_template: "",
+    assigned_group_id: "",
   });
 
   async function loadData() {
@@ -58,13 +91,18 @@ export function IncidentRulesPage() {
       setLoading(true);
       setError(null);
 
-      const [rulesResp, camsResp] = await Promise.all([
-        apiGet<IncidentRule[]>("/incident-rules/"),
-        apiGet<Device[]>("/devices/cameras/"),
-      ]);
+      const [rulesResp, camsResp, groupsResp, supportGroupsResp] =
+        await Promise.all([
+          apiGet<IncidentRule[]>("/incident-rules/"),
+          apiGet<Device[]>("/devices/cameras/"),
+          apiGet<CameraGroup[]>("devices/camera-groups/"),
+          apiGet<SupportGroup[]>("/support-groups/"),
+        ]);
 
       setRules(rulesResp);
       setCameras(camsResp);
+      setGroups(groupsResp);
+      setSupportGroups(supportGroupsResp);
     } catch (err) {
       console.error(err);
       setError(
@@ -90,35 +128,113 @@ export function IncidentRulesPage() {
     }));
   };
 
+  const getRuleScope = (rule: IncidentRule): RuleScope => {
+    if (rule.device_id != null) return "DEVICE";
+    if (rule.camera_group_id != null) return "GROUP";
+    return "GLOBAL";
+  };
+
+  const normalizedSearch = search.trim().toLowerCase();
+
+  const filteredRules = useMemo(() => {
+    return rules.filter((rule) => {
+      // filtro por escopo
+      const scope = getRuleScope(rule);
+      if (scopeFilter !== "ALL" && scopeFilter !== scope) {
+        return false;
+      }
+
+      if (!normalizedSearch) return true;
+
+      const camera =
+        rule.device_id != null
+          ? cameras.find((c) => c.id === rule.device_id)
+          : undefined;
+      const cameraGroup =
+        rule.camera_group_id != null
+          ? groups.find((g) => g.id === rule.camera_group_id)
+          : undefined;
+
+      const supportGroup =
+        rule.assigned_group_id != null
+          ? supportGroups.find((sg) => sg.id === rule.assigned_group_id)
+          : undefined;
+
+      const haystack = [
+        rule.name,
+        rule.analytic_type,
+        camera?.name,
+        camera?.code ?? "",
+        cameraGroup?.name,
+        supportGroup?.name, // 👈 também busca por nome do grupo de atendimento
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch);
+    });
+  }, [rules, cameras, groups, supportGroups, scopeFilter, normalizedSearch]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
 
     try {
+      if (!form.name.trim()) {
+        throw new Error("Informe um nome para a regra.");
+      }
+      if (!form.analytic_type.trim()) {
+        throw new Error("Informe o tipo de analítico.");
+      }
+
+      if (form.scope === "DEVICE" && !form.device_id) {
+        throw new Error("Selecione uma câmera para a regra.");
+      }
+
+      if (form.scope === "GROUP" && !form.camera_group_id) {
+        throw new Error("Selecione um grupo de câmeras para a regra.");
+      }
+
       const payload: any = {
-        name: form.name,
+        name: form.name.trim(),
         enabled: form.enabled,
-        analytic_type: form.analytic_type,
+        analytic_type: form.analytic_type.trim(),
         severity: form.severity,
-        title_template: form.title_template || null,
-        description_template: form.description_template || null,
+        title_template: form.title_template.trim() || null,
+        description_template: form.description_template.trim() || null,
       };
 
-      if (form.device_id) {
-        payload.device_id = Number(form.device_id);
-      } else {
+      // Escopo: GLOBAL / DEVICE / GROUP
+      if (form.scope === "GLOBAL") {
         payload.device_id = null;
+        payload.camera_group_id = null;
+      } else if (form.scope === "DEVICE") {
+        payload.device_id = Number(form.device_id);
+        payload.camera_group_id = null;
+      } else if (form.scope === "GROUP") {
+        payload.device_id = null;
+        payload.camera_group_id = Number(form.camera_group_id);
+      }
+
+      // Grupo de atendimento (SupportGroup)
+      if (form.assigned_group_id) {
+        payload.assigned_group_id = Number(form.assigned_group_id);
+      } else {
+        payload.assigned_group_id = null;
       }
 
       await apiPost<IncidentRule>("/incident-rules/", payload);
 
-      // reseta form básico
+      // reset básico do form
       setForm((prev) => ({
         ...prev,
         name: "",
         title_template: "",
         description_template: "",
+        assigned_group_id: "",
+        // mantemos analytic_type, scope e severity para facilitar criação em lote
       }));
 
       await loadData();
@@ -160,6 +276,41 @@ export function IncidentRulesPage() {
     }
   };
 
+  const getRuleTargetLabel = (rule: IncidentRule): string => {
+    const scope = getRuleScope(rule);
+    if (scope === "GLOBAL") {
+      return "Qualquer câmera";
+    }
+
+    if (scope === "DEVICE" && rule.device_id != null) {
+      const camera = cameras.find((c) => c.id === rule.device_id);
+      if (!camera) return `Câmera #${rule.device_id}`;
+      return (camera as any).code || camera.name || `Câmera #${camera.id}`;
+    }
+
+    if (scope === "GROUP" && rule.camera_group_id != null) {
+      const group = groups.find((g) => g.id === rule.camera_group_id);
+      if (!group) return `Grupo #${rule.camera_group_id}`;
+      return `Grupo: ${group.name}`;
+    }
+
+    return "—";
+  };
+
+  const getScopeLabel = (rule: IncidentRule): string => {
+    const scope = getRuleScope(rule);
+    if (scope === "GLOBAL") return "Global";
+    if (scope === "DEVICE") return "Câmera";
+    return "Grupo";
+  };
+
+  const getSupportGroupLabel = (rule: IncidentRule): string => {
+    if (rule.assigned_group_id == null) return "—";
+    const sg = supportGroups.find((g) => g.id === rule.assigned_group_id);
+    if (!sg) return `Grupo de atendimento #${rule.assigned_group_id}`;
+    return sg.name;
+  };
+
   return (
     <div className="flex h-full flex-col gap-4">
       <header className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
@@ -168,9 +319,9 @@ export function IncidentRulesPage() {
             Regras de Incidentes Automáticos
           </h1>
           <p className="text-sm text-slate-500">
-            Configure quais analíticos de quais câmeras devem gerar incidentes
-            automaticamente. Nesta primeira versão, a regra é por câmera +
-            tipo de analítico.
+            Defina quais analíticos em quais câmeras ou grupos de câmeras devem
+            gerar incidentes automaticamente, e para qual grupo de atendimento
+            serão encaminhados.
           </p>
         </div>
         <button
@@ -194,15 +345,17 @@ export function IncidentRulesPage() {
           Nova regra de incidente
         </h2>
         <p className="mt-1 text-xs text-slate-500">
-          Defina um nome, selecione a câmera (ou deixe em branco para regra
-          global) e informe o tipo de analítico exatamente como vem no evento
-          (ex.: <code className="rounded bg-slate-100 px-1">faceRecognized</code>).
+          Informe um nome, selecione o escopo (global, por câmera ou por grupo)
+          e o tipo de analítico exatamente como vem no evento (ex.:{" "}
+          <code className="rounded bg-slate-100 px-1">faceRecognized</code>,{" "}
+          <code className="rounded bg-slate-100 px-1">FaceDetection</code>).
         </p>
 
         <form
           onSubmit={handleSubmit}
           className="mt-3 grid gap-3 md:grid-cols-2"
         >
+          {/* Nome da regra */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-600">
               Nome da regra
@@ -216,24 +369,7 @@ export function IncidentRulesPage() {
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">
-              Câmera (opcional)
-            </label>
-            <select
-              className="w-full rounded-md border px-2 py-1.5 text-sm"
-              value={form.device_id}
-              onChange={(e) => handleChange("device_id", e.target.value)}
-            >
-              <option value="">Qualquer câmera</option>
-              {cameras.map((cam) => (
-                <option key={cam.id} value={cam.id}>
-                  {(cam as any).code || cam.name || `CAM ${cam.id}`}
-                </option>
-              ))}
-            </select>
-          </div>
-
+          {/* Tipo de analítico */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-600">
               Tipo de analítico
@@ -248,6 +384,25 @@ export function IncidentRulesPage() {
             />
           </div>
 
+          {/* Escopo */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-600">
+              Escopo da regra
+            </label>
+            <select
+              className="w-full rounded-md border px-2 py-1.5 text-sm"
+              value={form.scope}
+              onChange={(e) =>
+                handleChange("scope", e.target.value as NewRuleScope)
+              }
+            >
+              <option value="GLOBAL">Qualquer câmera</option>
+              <option value="DEVICE">Câmera específica</option>
+              <option value="GROUP">Grupo de câmeras</option>
+            </select>
+          </div>
+
+          {/* Severidade */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-600">
               Severidade
@@ -266,6 +421,78 @@ export function IncidentRulesPage() {
             </select>
           </div>
 
+          {/* Grupo de atendimento (SupportGroup) */}
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-xs font-medium text-slate-600">
+              Grupo de atendimento (opcional)
+            </label>
+            <select
+              className="w-full rounded-md border px-2 py-1.5 text-sm"
+              value={form.assigned_group_id}
+              onChange={(e) =>
+                handleChange("assigned_group_id", e.target.value)
+              }
+            >
+              <option value="">Nenhum (depois será atribuído manualmente)</option>
+              {supportGroups
+                .filter((sg) => sg.is_active)
+                .map((sg) => (
+                  <option key={sg.id} value={sg.id}>
+                    {sg.name}
+                  </option>
+                ))}
+            </select>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Esse é o grupo que receberá automaticamente os incidentes gerados
+              por esta regra.
+            </p>
+          </div>
+
+          {/* Câmera (quando escopo = DEVICE) */}
+          {form.scope === "DEVICE" && (
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs font-medium text-slate-600">
+                Câmera alvo
+              </label>
+              <select
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+                value={form.device_id}
+                onChange={(e) => handleChange("device_id", e.target.value)}
+              >
+                <option value="">Selecione uma câmera</option>
+                {cameras.map((cam) => (
+                  <option key={cam.id} value={cam.id}>
+                    {(cam as any).code || cam.name || `CAM ${cam.id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Grupo (quando escopo = GROUP) */}
+          {form.scope === "GROUP" && (
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs font-medium text-slate-600">
+                Grupo de câmeras
+              </label>
+              <select
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+                value={form.camera_group_id}
+                onChange={(e) =>
+                  handleChange("camera_group_id", e.target.value)
+                }
+              >
+                <option value="">Selecione um grupo</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Template título */}
           <div className="space-y-1 md:col-span-2">
             <label className="text-xs font-medium text-slate-600">
               Template do título (opcional)
@@ -292,6 +519,7 @@ export function IncidentRulesPage() {
             </p>
           </div>
 
+          {/* Template descrição */}
           <div className="space-y-1 md:col-span-2">
             <label className="text-xs font-medium text-slate-600">
               Template da descrição (opcional)
@@ -331,29 +559,57 @@ export function IncidentRulesPage() {
 
       {/* Lista de regras existentes */}
       <section className="rounded-xl border bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-slate-800">
               Regras configuradas
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Cada regra pode ser global (qualquer câmera) ou específica de uma
-              câmera. Quando um evento de câmera chega com o analítico
-              configurado, um incidente é criado automaticamente.
+              Cada regra pode ser global (qualquer câmera), por câmera
+              específica ou por grupo de câmeras. Quando um evento de câmera
+              chega com o analítico configurado, um incidente é criado
+              automaticamente e pode ser atribuído a um grupo de atendimento.
             </p>
           </div>
-          <span className="text-xs text-slate-500">
-            {rules.length} regra{rules.length === 1 ? "" : "s"}
-          </span>
+          <div className="flex flex-col items-end gap-2 md:items-center">
+            <span className="text-xs text-slate-500">
+              {rules.length} regra{rules.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
+
+        {/* Filtros da listagem */}
+        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <input
+            type="text"
+            placeholder="Buscar por nome, analítico, câmera, grupo ou grupo de atendimento..."
+            className="w-full md:w-72 rounded-md border px-2 py-1.5 text-xs"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="text-slate-500">Filtrar por escopo:</span>
+            <select
+              className="rounded-md border px-2 py-1 text-[11px]"
+              value={scopeFilter}
+              onChange={(e) => setScopeFilter(e.target.value as ScopeFilter)}
+            >
+              <option value="ALL">Todos</option>
+              <option value="GLOBAL">Global</option>
+              <option value="DEVICE">Câmera</option>
+              <option value="GROUP">Grupo</option>
+            </select>
+          </div>
         </div>
 
         {loading ? (
           <div className="mt-3 text-xs text-slate-400">
             Carregando regras...
           </div>
-        ) : rules.length === 0 ? (
+        ) : filteredRules.length === 0 ? (
           <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            Nenhuma regra cadastrada ainda.
+            Nenhuma regra encontrada com os filtros atuais.
           </div>
         ) : (
           <div className="mt-3 overflow-x-auto">
@@ -370,7 +626,13 @@ export function IncidentRulesPage() {
                     Analítico
                   </th>
                   <th className="px-3 py-2 text-left font-medium text-slate-500">
-                    Câmera
+                    Escopo
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-500">
+                    Alvo
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-500">
+                    Grupo de atendimento
                   </th>
                   <th className="px-3 py-2 text-left font-medium text-slate-500">
                     Severidade
@@ -381,57 +643,52 @@ export function IncidentRulesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rules.map((rule) => {
-                  const camera =
-                    rule.device_id != null
-                      ? cameras.find((c) => c.id === rule.device_id)
-                      : undefined;
-
-                  return (
-                    <tr key={rule.id}>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => void toggleRuleEnabled(rule)}
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            rule.enabled
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-200 text-slate-600"
-                          }`}
-                        >
-                          {rule.enabled ? "Ativa" : "Inativa"}
-                        </button>
-                      </td>
-                      <td className="px-3 py-2 text-slate-800">
-                        {rule.name}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        {rule.analytic_type}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        {camera
-                          ? (camera as any).code ||
-                            camera.name ||
-                            `CAM ${camera.id}`
-                          : "Qualquer câmera"}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-50">
-                          {rule.severity}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => void deleteRule(rule)}
-                          className="text-[11px] font-medium text-rose-600 hover:text-rose-700"
-                        >
-                          Remover
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredRules.map((rule) => (
+                  <tr key={rule.id}>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => void toggleRuleEnabled(rule)}
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          rule.enabled
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {rule.enabled ? "Ativa" : "Inativa"}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-slate-800">
+                      {rule.name}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {rule.analytic_type || "—"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {getScopeLabel(rule)}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {getRuleTargetLabel(rule)}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {getSupportGroupLabel(rule)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-50">
+                        {rule.severity}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => void deleteRule(rule)}
+                        className="text-[11px] font-medium text-rose-600 hover:text-rose-700"
+                      >
+                        Remover
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
