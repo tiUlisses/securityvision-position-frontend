@@ -91,19 +91,17 @@ import React, {
     };
   
     const signup = async ({ fullName, email, password }: SignupInput) => {
-      // Cria usuário com perfil OPERATOR por padrão
-      await apiPost<AuthUser>("/auth/signup", {
-        email,
-        full_name: fullName,
-        password,
-        role: "OPERATOR",
-        is_active: true,
-        is_superuser: false,
-      });
-  
-      // Após signup, já faz login automático
-      await login({ email, password });
-    };
+        await apiPost<AuthUser>("/auth/signup", {
+          email,
+          full_name: fullName,
+          password,
+          role: "ADMIN",
+          is_active: true,
+          is_superuser: true,
+        });
+      
+        await login({ email, password });
+      };
   
     const logout = () => {
       if (typeof window !== "undefined") {
