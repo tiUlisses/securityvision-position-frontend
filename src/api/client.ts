@@ -14,9 +14,30 @@ if (!API_BASE_URL.endsWith("/api/v1")) {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text || res.statusText}`);
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.localStorage.removeItem("svpos_token");
+      window.dispatchEvent(new Event("svpos:unauthorized"));
+    }
+
+    let message = res.statusText || "Erro na API";
+
+    try {
+      const data = await res.clone().json();
+      if (data && typeof data === "object" && "detail" in data) {
+        const detail: any = (data as any).detail;
+        message = typeof detail === "string" ? detail : JSON.stringify(detail);
+      } else {
+        message = JSON.stringify(data);
+      }
+    } catch {
+      const text = await res.text().catch(() => "");
+      if (text) message = text;
+    }
+
+    throw new Error(message);
   }
+
+  if (res.status === 204) return undefined as unknown as T;
   return (await res.json()) as T;
 }
 

@@ -139,6 +139,12 @@ export interface Incident {
   sla_minutes?: number | null;
   due_at?: string | null;
 
+  assigned_group?: SupportGroupShort | null;
+  assignees?: UserShort[];
+  chatwoot_conversation_id?: number | null;
+
+  assigned_group_id?: number | null;
+  assigned_to_user_id?: number | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
@@ -161,3 +167,63 @@ export interface IncidentMessage {
 
   created_at: string;
 }
+
+// -----------------------------------------------------------------------------
+// Dashboard DTOs / Tipos auxiliares
+// -----------------------------------------------------------------------------
+
+// Alias para compatibilidade (caso seu projeto use Device/Tag em imports)
+export type Device = DeviceEntity;
+export type Tag = TagEntity;
+
+// /devices/status?only_gateways=true (no backend chama DeviceStatusRead)
+export interface GatewayStatusDTO {
+  id: number;
+  name: string;
+  mac_address?: string | null;
+  last_seen_at?: string | null;
+  is_online: boolean;
+}
+
+// /devices/cameras/{id}/events
+export interface DeviceEventDTO {
+  id: number;
+  device_id: number;
+  topic: string;
+  analytic_type: string;
+  payload: any;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface CameraStatusInfo {
+  isOnline: boolean;
+  rawStatus: string | null;
+  lastStatusAt: string | null;
+}
+
+// SupportGroup/Users curtos (usados em IncidentRead)
+export interface SupportGroupShort {
+  id: number;
+  name: string;
+}
+
+export interface UserShort {
+  id: number;
+  full_name: string;
+  email?: string | null;
+}
+
+// -----------------------------------------------------------------------------
+// Ajuste no tipo Incident (se o seu ainda não tem esses campos)
+// -----------------------------------------------------------------------------
+
+// Se já existir `export interface Incident`, adicione esses campos dentro dela:
+export type IncidentStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "RESOLVED"
+  | "FALSE_POSITIVE"
+  | "CANCELED";
+
+export type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";

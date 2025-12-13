@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import AppLayout from "./components/layout/AppLayout";
 
 import BuildingsAndFloorsPage from "./pages/BuildingsAndFloorsPage";
@@ -13,10 +13,12 @@ import IncidentsPage from "./pages/IncidentsPage";
 import ReportsPage from "./pages/ReportsPage";
 import IncidentRulesPage from "./pages/IncidentRulesPage";
 import AuthPage from "./pages/AuthPage";
+import AdminUsersGroupsPage from "./pages/AdminUsersGroupsPage";
+
 import { useAuth } from "./contexts/AuthContext";
 
 type PageKey =
-  "incidents-rules"
+  | "incidents-rules"
   | "dashboard"
   | "incidents"
   | "devices"
@@ -25,7 +27,8 @@ type PageKey =
   | "gateways"
   | "people"
   | "reports"
-  | "webhooks";
+  | "webhooks"
+  | "admin-users-groups";
 
 type NavItem = {
   key: string;
@@ -38,6 +41,12 @@ function App() {
   const { user, isLoading } = useAuth();
   const [page, setPage] = useState<PageKey>("dashboard");
 
+  const isAdmin = useMemo(() => {
+    if (!user) return false;
+    const role = String((user as any).role ?? "");
+    return Boolean((user as any).is_superuser) || role === "ADMIN" || role === "SUPERADMIN";
+  }, [user]);
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100 text-sm">
@@ -49,6 +58,11 @@ function App() {
   // 🔐 Se não tiver usuário logado, mostra só a tela de Auth
   if (!user) {
     return <AuthPage />;
+  }
+
+  // Guard: se alguém ficar com page admin selecionada e não for admin, cai no dashboard
+  if (page === "admin-users-groups" && !isAdmin) {
+    setPage("dashboard");
   }
 
   const navItems: NavItem[] = [
@@ -112,6 +126,18 @@ function App() {
       onClick: () => setPage("incidents"),
       active: page === "incidents",
     },
+
+    // ✅ Admin-only
+    ...(isAdmin
+      ? [
+          {
+            key: "admin-users-groups",
+            label: "Admin • Usuários & Grupos",
+            onClick: () => setPage("admin-users-groups"),
+            active: page === "admin-users-groups",
+          } as NavItem,
+        ]
+      : []),
   ];
 
   const renderPage = () => {
@@ -136,6 +162,8 @@ function App() {
         return <IncidentsPage />;
       case "incidents-rules":
         return <IncidentRulesPage />;
+      case "admin-users-groups":
+        return <AdminUsersGroupsPage />;
       default:
         return <DashboardPage />;
     }
