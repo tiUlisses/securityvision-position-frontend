@@ -1,11 +1,12 @@
 // src/pages/AuthPage.tsx
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type Mode = "login" | "signup";
 
 const AuthPage: React.FC = () => {
-  const { login, signup } = useAuth();
+  const { login, signup, user } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
 
   const [fullName, setFullName] = useState("");
@@ -15,6 +16,19 @@ const AuthPage: React.FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const fromPath = useMemo(() => {
+    const state = location.state as any;
+    return state?.from?.pathname || "/";
+  }, [location.state]);
+
+  // se já estiver logado e entrar em /auth, manda pro app
+  if (user) {
+    navigate(fromPath, { replace: true });
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,6 +51,8 @@ const AuthPage: React.FC = () => {
       } else {
         await signup({ fullName, email, password });
       }
+
+      navigate(fromPath, { replace: true });
     } catch (err: any) {
       setError(
         err?.message ??
@@ -66,7 +82,6 @@ const AuthPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Abas Login / Signup */}
         <div className="mb-4 flex rounded-full bg-slate-800 p-1 text-xs">
           <button
             type="button"

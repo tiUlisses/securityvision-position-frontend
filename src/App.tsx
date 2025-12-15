@@ -1,6 +1,10 @@
 // src/App.tsx
-import { useMemo, useState } from "react";
+import React, { useMemo } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+
 import AppLayout from "./components/layout/AppLayout";
+import type { NavItem } from "./components/layout/AppLayout";
+import RequireAuth from "./components/auth/RequireAuth";
 
 import BuildingsAndFloorsPage from "./pages/BuildingsAndFloorsPage";
 import PeopleAndTagsPage from "./pages/PeopleAndTagsPage";
@@ -13,163 +17,80 @@ import IncidentsPage from "./pages/IncidentsPage";
 import ReportsPage from "./pages/ReportsPage";
 import IncidentRulesPage from "./pages/IncidentRulesPage";
 import AuthPage from "./pages/AuthPage";
+import NotFoundPage from "./pages/NotFoundPage";
+
 import AdminUsersGroupsPage from "./pages/AdminUsersGroupsPage";
 
 import { useAuth } from "./contexts/AuthContext";
 
-type PageKey =
-  | "incidents-rules"
-  | "dashboard"
-  | "incidents"
-  | "devices"
-  | "alerts"
-  | "buildings"
-  | "gateways"
-  | "people"
-  | "reports"
-  | "webhooks"
-  | "admin-users-groups";
+const App: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin =
+    !!user && (user.is_superuser || ["ADMIN", "SUPERADMIN"].includes(user.role));
 
-type NavItem = {
-  key: string;
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-};
+  const navItems: NavItem[] = useMemo(() => {
+    const base: NavItem[] = [
+      { key: "dashboard", label: "Dashboard", to: "/", end: true },
+      { key: "alerts", label: "Alertas", to: "/alerts" },
+      { key: "incidents-rules", label: "Regras de Incidentes", to: "/incident-rules" },
+      { key: "reports", label: "Relatórios", to: "/reports" },
+      { key: "buildings", label: "Prédios & Plantas", to: "/buildings" },
+      { key: "gateways", label: "Gateways", to: "/gateways" },
+      { key: "devices", label: "Dispositivos", to: "/devices" },
+      { key: "people", label: "Pessoas & Tags", to: "/people" },
+      { key: "webhooks", label: "Webhooks & Integrações", to: "/webhooks" },
+      { key: "incidents", label: "Incidentes", to: "/incidents" },
+    ];
 
-function App() {
-  const { user, isLoading } = useAuth();
-  const [page, setPage] = useState<PageKey>("dashboard");
-
-  const isAdmin = useMemo(() => {
-    if (!user) return false;
-    const role = String((user as any).role ?? "");
-    return Boolean((user as any).is_superuser) || role === "ADMIN" || role === "SUPERADMIN";
-  }, [user]);
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100 text-sm">
-        Carregando sessão...
-      </div>
-    );
-  }
-
-  // 🔐 Se não tiver usuário logado, mostra só a tela de Auth
-  if (!user) {
-    return <AuthPage />;
-  }
-
-  // Guard: se alguém ficar com page admin selecionada e não for admin, cai no dashboard
-  if (page === "admin-users-groups" && !isAdmin) {
-    setPage("dashboard");
-  }
-
-  const navItems: NavItem[] = [
-    {
-      key: "dashboard",
-      label: "Dashboard",
-      onClick: () => setPage("dashboard"),
-      active: page === "dashboard",
-    },
-    {
-      key: "alerts",
-      label: "Alertas",
-      onClick: () => setPage("alerts"),
-      active: page === "alerts",
-    },
-    {
-      key: "incidents-rules",
-      label: "Regras de Incidentes",
-      onClick: () => setPage("incidents-rules"),
-      active: page === "incidents-rules",
-    },
-    {
-      key: "reports",
-      label: "Relatórios",
-      onClick: () => setPage("reports"),
-      active: page === "reports",
-    },
-    {
-      key: "buildings",
-      label: "Prédios & Plantas",
-      onClick: () => setPage("buildings"),
-      active: page === "buildings",
-    },
-    {
-      key: "gateways",
-      label: "Gateways",
-      onClick: () => setPage("gateways"),
-      active: page === "gateways",
-    },
-    {
-      key: "devices",
-      label: "Dispositivos",
-      onClick: () => setPage("devices"),
-      active: page === "devices",
-    },
-    {
-      key: "people",
-      label: "Pessoas & Tags",
-      onClick: () => setPage("people"),
-      active: page === "people",
-    },
-    {
-      key: "webhooks",
-      label: "Webhooks & Integrações",
-      onClick: () => setPage("webhooks"),
-      active: page === "webhooks",
-    },
-    {
-      key: "incidents",
-      label: "Incidentes",
-      onClick: () => setPage("incidents"),
-      active: page === "incidents",
-    },
-
-    // ✅ Admin-only
-    ...(isAdmin
-      ? [
-          {
-            key: "admin-users-groups",
-            label: "Admin • Usuários & Grupos",
-            onClick: () => setPage("admin-users-groups"),
-            active: page === "admin-users-groups",
-          } as NavItem,
-        ]
-      : []),
-  ];
-
-  const renderPage = () => {
-    switch (page) {
-      case "dashboard":
-        return <DashboardPage />;
-      case "alerts":
-        return <AlertRulesPage />;
-      case "reports":
-        return <ReportsPage />;
-      case "buildings":
-        return <BuildingsAndFloorsPage />;
-      case "gateways":
-        return <GatewaysPage />;
-      case "devices":
-        return <DevicesPage />;
-      case "people":
-        return <PeopleAndTagsPage />;
-      case "webhooks":
-        return <WebhooksPage />;
-      case "incidents":
-        return <IncidentsPage />;
-      case "incidents-rules":
-        return <IncidentRulesPage />;
-      case "admin-users-groups":
-        return <AdminUsersGroupsPage />;
-      default:
-        return <DashboardPage />;
+    if (isAdmin) {
+      base.splice(1, 0, {
+        key: "admin-users",
+        label: "Usuários & Grupos",
+        to: "/admin/users-groups",
+      });
     }
-  };
 
-  return <AppLayout navItems={navItems}>{renderPage()}</AppLayout>;
-}
+    return base;
+  }, [isAdmin]);
+
+  return (
+    <Routes>
+      {/* Auth */}
+      <Route
+        path="/auth"
+        element={user ? <Navigate to="/" replace /> : <AuthPage />}
+      />
+
+      {/* App protegido */}
+      <Route element={<RequireAuth />}>
+        <Route element={<AppLayout navItems={navItems} />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="alerts" element={<AlertRulesPage />} />
+          <Route path="incident-rules" element={<IncidentRulesPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="buildings" element={<BuildingsAndFloorsPage />} />
+          <Route path="gateways" element={<GatewaysPage />} />
+          <Route path="devices" element={<DevicesPage />} />
+          <Route path="people" element={<PeopleAndTagsPage />} />
+          <Route path="webhooks" element={<WebhooksPage />} />
+          <Route path="incidents" element={<IncidentsPage />} />
+
+          {/* Admin */}
+          <Route
+            path="admin/users-groups"
+            element={
+              isAdmin ? <AdminUsersGroupsPage /> : <Navigate to="/" replace />
+            }
+          />
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Route>
+
+      {/* fallback global */}
+      <Route path="*" element={<Navigate to={user ? "/" : "/auth"} replace />} />
+    </Routes>
+  );
+};
 
 export default App;
