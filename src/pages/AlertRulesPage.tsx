@@ -34,8 +34,8 @@ interface AlertRule {
   device_id?: number | null;
   max_dwell_seconds?: number | null;
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface AlertRulePayload {
@@ -52,14 +52,26 @@ interface AlertEvent {
   id: number;
   event_type: string;
   rule_id?: number | null;
+
   person_id?: number | null;
   tag_id?: number | null;
   device_id?: number | null;
+
   floor_plan_id?: number | null;
   floor_id?: number | null;
   building_id?: number | null;
-  triggered_at: string;
+  group_id?: number | null;
+
+  started_at: string;
+  last_seen_at: string;
+  ended_at?: string | null;
+  is_open: boolean;
+
+  message?: string | null;
   payload?: string | null;
+
+  first_collection_log_id?: number | null;
+  last_collection_log_id?: number | null;
 }
 
 const RULE_TYPE_OPTIONS: { value: string; label: string; description: string }[] =
@@ -148,6 +160,11 @@ const AlertRulesPage = () => {
     });
     return map;
   }, [devices]);
+
+  const gateways = useMemo(
+    () => devices.filter((d) => d.type === "BLE_GATEWAY"),
+    [devices]
+  );
 
   const peopleById = useMemo(() => {
     const map: Record<number, Person> = {};
@@ -288,10 +305,10 @@ const AlertRulesPage = () => {
           formData.device_id === "" || formData.device_id === undefined
             ? null
             : formData.device_id,
-        max_dwell_seconds:
-          formData.rule_type === "DWELL_TIME"
-            ? formData.max_dwell_seconds || 0
-            : formData.max_dwell_seconds ?? null,
+            max_dwell_seconds:
+            formData.rule_type === "DWELL_TIME"
+              ? (formData.max_dwell_seconds ?? 0)
+              : null,
       };
 
       let saved: AlertRule;
@@ -432,7 +449,7 @@ const AlertRulesPage = () => {
               }
             >
               <option value="">Gateway (todos)</option>
-              {devices.map((d) => (
+              {gateways.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name || d.mac_address || `Device #${d.id}`}
                 </option>
@@ -619,7 +636,27 @@ const AlertRulesPage = () => {
                 const device = ev.device_id
                   ? devicesById[ev.device_id!]
                   : undefined;
-
+                  let payloadObj: any = null;
+                  try {
+                    payloadObj = ev.payload ? JSON.parse(ev.payload) : null;
+                  } catch {
+                    payloadObj = null;
+                  }
+                  
+                  const started = new Date(ev.started_at);
+                  const lastSeen = new Date(ev.last_seen_at);
+                  const ended = ev.ended_at ? new Date(ev.ended_at) : null;
+                  
+                  const durationSeconds =
+                    typeof payloadObj?.duration_seconds === "number"
+                      ? payloadObj.duration_seconds
+                      : (() => {
+                          if (Number.isNaN(started.getTime()) || Number.isNaN(lastSeen.getTime())) return null;
+                          const end = ended && !Number.isNaN(ended.getTime()) ? ended : lastSeen;
+                          return Math.max(0, Math.floor((end.getTime() - started.getTime()) / 1000));
+                        })();
+                  
+                  const closeReason = payloadObj?.close_reason ?? null;
                 return (
                   <div
                     key={ev.id}
@@ -635,7 +672,7 @@ const AlertRulesPage = () => {
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        {formatDateTime(ev.triggered_at)}
+                        {formatDateTime(ev.started_at)}
                       </div>
                     </div>
 
@@ -768,7 +805,7 @@ const AlertRulesPage = () => {
                   required
                 >
                   <option value="">Selecione um gateway...</option>
-                  {devices.map((d) => (
+                  {gateways.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name || d.mac_address || `Device #${d.id}`}
                     </option>
