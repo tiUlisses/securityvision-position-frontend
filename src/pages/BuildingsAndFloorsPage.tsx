@@ -18,29 +18,35 @@ import {
 } from "../api/client";
 import { CameraAnalyticsSelector } from "../components/devices/CameraAnalyticsSelector";
 import { DEFAULT_ANALYTICS_BY_MANUFACTURER } from "../constants/analytics";
+import ManagementCard from "../components/buildings/ManagementCard";
+import CreationChecklist from "../components/buildings/CreationChecklist";
+import ResourceListCard from "../components/buildings/ResourceListCard";
+import FloorPlanListCard from "../components/buildings/FloorPlanListCard";
+import CameraQuickForm from "../components/buildings/CameraQuickForm";
+import CameraListCard from "../components/buildings/CameraListCard";
 
-interface Building {
+export interface Building {
   id: number;
   name: string;
   description?: string | null;
   address?: string | null;
 }
 
-interface Floor {
+export interface Floor {
   id: number;
   name: string;
   level?: number | null;
   building_id: number;
 }
 
-interface FloorPlan {
+export interface FloorPlan {
   id: number;
   name: string;
   floor_id: number;
   image_url: string | null;
 }
 
-interface Device {
+export interface Device {
   id: number;
   name: string;
   type: string; // "BLE_GATEWAY" | "CAMERA" | outros tipos futuros
@@ -1075,378 +1081,207 @@ const BuildingsAndFloorsPage: FC = () => {
       d.floor_id === selectedFloorId
   );
 
+  const checklistSteps = [
+    {
+      title: "Cadastrar prédio",
+      description: "Crie o prédio para liberar o cadastro de andares.",
+      done: buildings.length > 0,
+    },
+    {
+      title: "Adicionar andares",
+      description: "Relacione os andares ao prédio selecionado.",
+      done: !!(selectedBuildingId && filteredFloors.length > 0),
+    },
+    {
+      title: "Criar plantas",
+      description: "Crie plantas e defina imagens para posicionamento.",
+      done: !!(selectedFloorId && filteredFloorPlans.length > 0),
+    },
+    {
+      title: "Cadastrar dispositivos",
+      description: "Inclua câmeras e gateways no ambiente correto.",
+      done: camerasForSelectedFloor.length > 0,
+    },
+  ];
+
+  const buildingItems = buildings.map((b) => ({
+    id: b.id,
+    title: b.name,
+    subtitle: b.address ?? undefined,
+    meta: b.description ?? undefined,
+  }));
+
+  const selectedBuildingName =
+    buildings.find((b) => b.id === selectedBuildingId)?.name ?? "";
+
+  const floorItems = filteredFloors.map((f) => ({
+    id: f.id,
+    title: f.name,
+    meta: selectedBuildingName ? `Prédio: ${selectedBuildingName}` : undefined,
+  }));
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
-      {/* Coluna de prédios */}
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-50 mb-1">
-            Prédios
-          </h2>
-          <p className="text-xs text-slate-400">
-            Cadastre e selecione o prédio para gerenciar andares, plantas e
-            câmeras associadas.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <CreationChecklist steps={checklistSteps} />
 
-        <div className="space-y-2 mb-2">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Nome do prédio"
-              className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-100"
-              value={newBuildingName}
-              onChange={(e) => setNewBuildingName(e.target.value)}
-            />
-            <button
-              onClick={handleCreateBuilding}
-              className="text-xs px-3 py-1 rounded bg-sv-accent text-white hover:bg-sv-accentSoft"
-            >
-              Adicionar
-            </button>
-          </div>
-        </div>
+      <input
+        type="file"
+        className="hidden"
+        ref={fileInputRef}
+        accept="image/*"
+        onChange={handleFileChange}
+      />
 
-        <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-950/60">
-          {buildings.map((b) => {
-            const isActive = b.id === selectedBuildingId;
-            return (
-              <div
-                key={b.id}
-                onClick={() => {
-                  setSelectedBuildingId(b.id);
-                  setSelectedFloorId(null);
-                }}
-                className={`px-3 py-2 text-sm border-b border-slate-800 last:border-b-0 cursor-pointer flex items-center justify-between
-                  ${
-                    isActive
-                      ? "bg-sv-accent/80 text-white"
-                      : "bg-slate-950 text-slate-200 hover:bg-slate-900"
-                  }`}
-              >
-                <span className="truncate">{b.name}</span>
+      <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
+        <div className="space-y-4">
+          <ManagementCard
+            title="Cadastro de prédios"
+            description="Comece registrando o prédio para que os próximos passos sejam habilitados."
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nome do prédio"
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-100"
+                  value={newBuildingName}
+                  onChange={(e) => setNewBuildingName(e.target.value)}
+                />
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteBuilding(b.id);
-                  }}
-                  className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-100 hover:bg-slate-700"
+                  type="button"
+                  onClick={handleCreateBuilding}
+                  className="text-xs px-3 py-1 rounded bg-sv-accent text-white hover:bg-sv-accentSoft"
                 >
-                  Excluir
+                  Adicionar
                 </button>
               </div>
-            );
-          })}
-          {buildings.length === 0 && (
-            <div className="px-3 py-3 text-xs text-slate-500">
-              Nenhum prédio cadastrado ainda.
+              <p className="text-[11px] text-slate-500">
+                Use um nome claro, como &quot;Unidade Centro&quot; ou &quot;Campus
+                Alpha&quot;, para facilitar a busca.
+              </p>
             </div>
-          )}
-        </div>
-      </div>
+            <ResourceListCard
+              items={buildingItems}
+              selectedId={selectedBuildingId}
+              onSelect={(id) => {
+                setSelectedBuildingId(id);
+                setSelectedFloorId(null);
+              }}
+              onDelete={handleDeleteBuilding}
+              emptyMessage="Nenhum prédio cadastrado ainda."
+            />
+          </ManagementCard>
 
-      {/* Coluna de andares, plantas e câmeras */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-50">
-              Andares, plantas e câmeras
-            </h2>
-            <p className="text-sm text-slate-400">
-              Selecione um prédio na coluna à esquerda para gerenciar os
-              ambientes internos.
-            </p>
-          </div>
-        </div>
-
-        <input
-          type="file"
-          className="hidden"
-          ref={fileInputRef}
-          accept="image/*"
-          onChange={handleFileChange}
-        />
-
-        {selectedBuildingId ? (
-          <>
-            {/* Andares + Plantas */}
-            <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
-              {/* Lista de andares */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Nome do andar (ex: 1º Andar)"
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-100"
-                    value={newFloorName}
-                    onChange={(e) => setNewFloorName(e.target.value)}
-                  />
-                  <button
-                    onClick={handleCreateFloor}
-                    className="text-xs px-3 py-1 rounded bg-slate-800 text-slate-100 hover:bg-slate-700"
-                  >
-                    Adicionar
-                  </button>
-                </div>
-
-                <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-950/60">
-                  {filteredFloors.map((f) => {
-                    const isActive = f.id === selectedFloorId;
-                    return (
-                      <div
-                        key={f.id}
-                        onClick={() => setSelectedFloorId(f.id)}
-                        className={`px-3 py-2 text-sm border-b border-slate-800 last:border-b-0 cursor-pointer flex items-center justify-between
-                          ${
-                            isActive
-                              ? "bg-sv-accent/70 text-white"
-                              : "bg-slate-950 text-slate-200 hover:bg-slate-900"
-                          }`}
-                      >
-                        <span className="truncate">{f.name}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFloor(f.id);
-                          }}
-                          className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-100 hover:bg-slate-700"
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {filteredFloors.length === 0 && (
-                    <div className="px-3 py-3 text-xs text-slate-500">
-                      Nenhum andar cadastrado para este prédio.
-                    </div>
-                  )}
-                </div>
+          <ManagementCard
+            title="Cadastro de andares"
+            description="Relacione os andares ao prédio selecionado antes de criar plantas."
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nome do andar (ex: 1º Andar)"
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-100 disabled:opacity-50"
+                  value={newFloorName}
+                  onChange={(e) => setNewFloorName(e.target.value)}
+                  disabled={!selectedBuildingId}
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateFloor}
+                  disabled={!selectedBuildingId}
+                  className="text-xs px-3 py-1 rounded bg-slate-800 text-slate-100 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Adicionar
+                </button>
               </div>
-
-              {/* Plantas do andar selecionado */}
-              <div className="border border-slate-800 rounded-lg p-3 min-h-[120px] bg-slate-950/60">
-                {selectedFloorId ? (
-                  <>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-slate-200">
-                        Plantas do andar
-                      </span>
-                      <button
-                        onClick={handleCreateFloorPlan}
-                        className="text-xs px-3 py-1 rounded bg-sv-accent text-white hover:bg-sv-accentSoft"
-                      >
-                        Criar planta
-                      </button>
-                    </div>
-
-                    {filteredFloorPlans.length === 0 && (
-                      <div className="text-xs text-slate-500">
-                        Nenhuma planta cadastrada para este andar.
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      {filteredFloorPlans.map((fp) => (
-                        <div
-                          key={fp.id}
-                          className="flex items-center justify-between bg-slate-950 rounded px-3 py-2 text-sm border border-slate-800"
-                        >
-                          <div>
-                            <div className="text-slate-100">
-                              {fp.name} (ID {fp.id})
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {fp.image_url
-                                ? "Imagem configurada"
-                                : "Sem imagem definida"}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleSetImageUrl(fp)}
-                              className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-100 hover:bg-slate-700"
-                            >
-                              Definir URL
-                            </button>
-                            <button
-                              onClick={() => handleClickUploadImage(fp.id)}
-                              className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-100 hover:bg-slate-700"
-                            >
-                              Upload imagem
-                            </button>
-                            <button
-                              onClick={() => setEditingFloorPlan(fp)}
-                              className="text-[11px] px-2 py-1 rounded bg-sv-accent text-white hover:bg-sv-accentSoft"
-                            >
-                              Editar planta
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-xs text-slate-500">
-                    Selecione um andar para ver/editar as plantas.
-                  </div>
-                )}
-              </div>
+              <p className="text-[11px] text-slate-500">
+                {selectedBuildingId
+                  ? `Andares vinculados a ${selectedBuildingName}.`
+                  : "Selecione um prédio para habilitar o cadastro de andares."}
+              </p>
             </div>
+            <ResourceListCard
+              items={floorItems}
+              selectedId={selectedFloorId}
+              onSelect={(id) => setSelectedFloorId(id)}
+              onDelete={handleDeleteFloor}
+              emptyMessage={
+                selectedBuildingId
+                  ? "Nenhum andar cadastrado para este prédio."
+                  : "Selecione um prédio para visualizar ou cadastrar andares."
+              }
+            />
+          </ManagementCard>
+        </div>
 
-            {/* Câmeras do andar selecionado */}
-            {selectedFloorId && (
-              <div className="border border-slate-800 rounded-lg p-3 mt-2 bg-slate-950/60">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="text-sm font-medium text-slate-200">
-                      Câmeras deste andar
-                    </span>
-                    <p className="text-[11px] text-slate-500">
-                      Cadastre novas câmeras ou edite/remova as existentes.
-                    </p>
-                  </div>
-                </div>
+        <div className="space-y-4">
+          <FloorPlanListCard
+            floorPlans={filteredFloorPlans}
+            onCreate={handleCreateFloorPlan}
+            onEdit={(fp) => setEditingFloorPlan(fp)}
+            onUploadImage={handleClickUploadImage}
+            onSetImageUrl={handleSetImageUrl}
+            disabled={!selectedFloorId}
+          />
 
-                {/* Formulário rápido de câmera */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-3 text-xs">
-                  <input
-                    type="text"
-                    placeholder="Nome da câmera"
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                    value={newCameraName}
-                    onChange={(e) => setNewCameraName(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Código (ex: fixa01)"
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                    value={newCameraCode}
-                    onChange={(e) => setNewCameraCode(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="IP da câmera"
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                    value={newCameraIP}
-                    onChange={(e) => setNewCameraIP(e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Porta (80)"
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                    value={newCameraPort}
-                    onChange={(e) => setNewCameraPort(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Usuário"
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                    value={newCameraUsername}
-                    onChange={(e) => setNewCameraUsername(e.target.value)}
-                  />
-                  <input
-                    type="password"
-                    placeholder="Senha"
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                    value={newCameraPassword}
-                    onChange={(e) => setNewCameraPassword(e.target.value)}
-                  />
+          <ManagementCard
+            title="Câmeras do andar"
+            description="Cadastre, edite e acompanhe as câmeras vinculadas ao ambiente selecionado."
+            footer="Após criar a planta, utilize o botão Editar planta para posicionar gateways e câmeras."
+          >
+            <CameraQuickForm
+              values={{
+                name: newCameraName,
+                code: newCameraCode,
+                ip: newCameraIP,
+                port: newCameraPort,
+                username: newCameraUsername,
+                password: newCameraPassword,
+                manufacturer: newCameraManufacturer,
+                model: newCameraModel,
+                analytics: newCameraAnalytics,
+              }}
+              onFieldChange={(field, value) => {
+                switch (field) {
+                  case "name":
+                    setNewCameraName(value);
+                    break;
+                  case "code":
+                    setNewCameraCode(value);
+                    break;
+                  case "ip":
+                    setNewCameraIP(value);
+                    break;
+                  case "port":
+                    setNewCameraPort(value);
+                    break;
+                  case "username":
+                    setNewCameraUsername(value);
+                    break;
+                  case "password":
+                    setNewCameraPassword(value);
+                    break;
+                  case "model":
+                    setNewCameraModel(value);
+                    break;
+                  default:
+                    break;
+                }
+              }}
+              onManufacturerChange={handleManufacturerChange}
+              onAnalyticsChange={setNewCameraAnalytics}
+              onSubmit={handleCreateCamera}
+              disabled={!selectedBuildingId || !selectedFloorId}
+            />
 
-                  {/* Fabricante (select) */}
-                  <div className="flex flex-col gap-1">
-                    <select
-                      className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                      value={newCameraManufacturer}
-                      onChange={(e) => handleManufacturerChange(e.target.value)}
-                    >
-                      <option value="">Selecione o fabricante</option>
-                      <option value="Dahua">Dahua</option>
-                      <option value="Hikvision">Hikvision</option>
-                    </select>
-                    <span className="text-[10px] text-slate-500">
-                      Define a lista de analíticos disponíveis.
-                    </span>
-                  </div>
-
-                  <input
-                    type="text"
-                    placeholder="Modelo"
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                    value={newCameraModel}
-                    onChange={(e) => setNewCameraModel(e.target.value)}
-                  />
-
-                  <button
-                    onClick={handleCreateCamera}
-                    className="text-xs px-3 py-1 rounded bg-indigo-500 text-white hover:bg-indigo-400 self-start"
-                  >
-                    Adicionar câmera
-                  </button>
-
-                  {/* Seletor de analíticos - ocupa linha inteira */}
-                  <div className="md:col-span-2 lg:col-span-3">
-                    <CameraAnalyticsSelector
-                      manufacturer={newCameraManufacturer}
-                      value={newCameraAnalytics}
-                      onChange={setNewCameraAnalytics}
-                    />
-                  </div>
-                </div>
-
-                {/* Lista de câmeras */}
-                <div className="border border-slate-800 rounded-lg overflow-hidden text-xs bg-slate-950/80">
-                  {camerasForSelectedFloor.length === 0 && (
-                    <div className="px-3 py-3 text-[11px] text-slate-500">
-                      Nenhuma câmera cadastrada para este andar.
-                    </div>
-                  )}
-
-                  {camerasForSelectedFloor.map((cam) => (
-                    <div
-                      key={cam.id}
-                      className="px-3 py-2 border-b border-slate-800 last:border-b-0 flex items-center justify-between"
-                    >
-                      <div>
-                        <div className="text-slate-100 font-medium">
-                          {cam.name}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          Código: {cam.code ?? "—"} · IP:{" "}
-                          {cam.ip_address ?? "—"}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          Planta:{" "}
-                          {cam.floor_plan_id
-                            ? `ID ${cam.floor_plan_id}`
-                            : "não posicionado na planta"}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setEditingCamera(cam)}
-                          className="text-[11px] px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-500"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCamera(cam.id)}
-                          className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-100 hover:bg-slate-700"
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-sm text-slate-500">
-            Selecione ou crie um prédio na coluna à esquerda para começar.
-          </div>
-        )}
+            <CameraListCard
+              cameras={camerasForSelectedFloor}
+              onEdit={(cam) => setEditingCamera(cam)}
+              onDelete={handleDeleteCamera}
+            />
+          </ManagementCard>
+        </div>
       </div>
 
       {/* Modal de edição da planta com drag & drop de gateways e câmeras */}
