@@ -22,6 +22,7 @@ type Gateway = Device;
 
 const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
 const RECENT_INCIDENTS_HIDDEN_STORAGE_KEY = "svpos_recent_incidents_hidden_ids_v1";
+const CAMERA_ALERTS_HIDDEN_STORAGE_KEY = "svpos_camera_alerts_hidden_types_v1";
 
 function computeGatewayOnlineFromLastSeen(gw: any): boolean {
   if (!gw.last_seen_at) return false;
@@ -37,6 +38,21 @@ function isStatusEvent(evt: DeviceEventDTO): boolean {
   const isStatusTopic = topic.endsWith("/status") || topic.includes("/status/");
   const isStatusAnalytic = analytic === "cambus_status" || analytic === "status";
   return isStatusTopic || isStatusAnalytic;
+}
+
+function getEventAnalyticLabel(evt: DeviceEventDTO): string {
+  const payload = (evt.payload || {}) as any;
+  return payload.AnalyticType || evt.analytic_type || "";
+}
+
+function normalizeAnalyticType(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function formatAnalyticLabel(value: string): string {
+  if (!value) return "";
+  const withSpaces = value.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
 }
 
 export function DashboardPage() {
@@ -78,6 +94,19 @@ export function DashboardPage() {
   >({});
   const [cameraHasNewEvent, setCameraHasNewEvent] = useState<Record<number, boolean>>({});
   const [activeCameraId, setActiveCameraId] = useState<number | null>(null);
+  const [availableCameraAnalytics, setAvailableCameraAnalytics] = useState<string[]>([]);
+  const [hiddenCameraAnalytics, setHiddenCameraAnalytics] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = window.localStorage.getItem(CAMERA_ALERTS_HIDDEN_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as string[];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((item) => typeof item === "string");
+    } catch {
+      return [];
+    }
+  });
 
   // Modais
   const [cameraModalCameraId, setCameraModalCameraId] = useState<number | null>(null);
@@ -113,6 +142,18 @@ export function DashboardPage() {
       // ignore
     }
   }, [hiddenIncidentIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        CAMERA_ALERTS_HIDDEN_STORAGE_KEY,
+        JSON.stringify(hiddenCameraAnalytics)
+      );
+    } catch {
+      // ignore
+    }
+  }, [hiddenCameraAnalytics]);
 
   const loadGlobalData = useCallback(async () => {
     try {
@@ -250,6 +291,7 @@ export function DashboardPage() {
       setCameraStatusByDeviceId({});
       setCameraHasNewEvent({});
       setLastCameraEventIdByDevice({});
+      setAvailableCameraAnalytics([]);
       return;
     }
 
@@ -261,6 +303,10 @@ export function DashboardPage() {
         const uiEventsMap: Record<number, DeviceEventDTO[]> = {};
         const latestIdByDevice: Record<number, number | null> = {};
         const statusMap: Record<number, CameraStatusInfo> = {};
+        const analyticsMap = new Map<string, string>();
+        const hiddenAnalyticsSet = new Set(
+          hiddenCameraAnalytics.map((item) => normalizeAnalyticType(item))
+        );
 
         for (const cam of cameras) {
           try {
@@ -299,8 +345,23 @@ export function DashboardPage() {
               const topicLower = (evt.topic || "").toLowerCase();
               if (!topicLower.endsWith("/events")) return false;
               if (isStatusEvent(evt)) return false;
-              return true;
+              const analyticLabel = getEventAnalyticLabel(evt);
+              if (!analyticLabel) return true;
+              const analyticKey = normalizeAnalyticType(analyticLabel);
+              return !hiddenAnalyticsSet.has(analyticKey);
             });
+
+            for (const evt of events) {
+              const topicLower = (evt.topic || "").toLowerCase();
+              if (!topicLower.endsWith("/events")) continue;
+              if (isStatusEvent(evt)) continue;
+              const analyticLabel = getEventAnalyticLabel(evt);
+              if (!analyticLabel) continue;
+              const analyticKey = normalizeAnalyticType(analyticLabel);
+              if (!analyticsMap.has(analyticKey)) {
+                analyticsMap.set(analyticKey, analyticLabel);
+              }
+            }
 
             uiEventsMap[cam.id] = filteredForUI;
             latestIdByDevice[cam.id] = filteredForUI[0]?.id ?? null;
@@ -313,6 +374,9 @@ export function DashboardPage() {
 
         setCameraEventsById(uiEventsMap);
         setCameraStatusByDeviceId(statusMap);
+        setAvailableCameraAnalytics(
+          Array.from(analyticsMap.values()).sort((a, b) => a.localeCompare(b))
+        );
 
         setLastCameraEventIdByDevice((prev) => {
           const next = { ...prev };
@@ -356,7 +420,13 @@ export function DashboardPage() {
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [devices]);
+  }, [devices, hiddenCameraAnalytics]);
+
+  useEffect(() => {
+    setCameraEventCountById({});
+    setCameraHasNewEvent({});
+    setLastCameraEventIdByDevice({});
+  }, [hiddenCameraAnalytics]);
 
   // Incidentes recentes (minhas filas)
   useEffect(() => {
@@ -413,6 +483,11 @@ export function DashboardPage() {
     if (!selectedFloorPlan) return [];
     return cameras.filter((c) => c.floor_plan_id === selectedFloorPlan.id);
   }, [cameras, selectedFloorPlan]);
+
+  const hiddenAnalyticsSet = useMemo(
+    () => new Set(hiddenCameraAnalytics.map((item) => normalizeAnalyticType(item))),
+    [hiddenCameraAnalytics]
+  );
 
   const isGatewayOnline = useCallback(
     (gw: Gateway) => {
@@ -491,6 +566,17 @@ export function DashboardPage() {
     if (!cameraModalCamera) return [];
     return cameraEventsById[cameraModalCamera.id] || [];
   }, [cameraModalCamera, cameraEventsById]);
+
+  const visibleCameraAnalytics = useMemo(() => {
+    if (availableCameraAnalytics.length === 0) return [];
+    return availableCameraAnalytics
+      .map((analytic) => ({
+        key: normalizeAnalyticType(analytic),
+        raw: analytic,
+        label: formatAnalyticLabel(analytic),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [availableCameraAnalytics]);
 
   const severityChip = (sev: string) => {
     const s = (sev || "").toUpperCase();
@@ -732,6 +818,78 @@ export function DashboardPage() {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase text-slate-500">
+                Alertas visíveis das câmeras
+              </h3>
+              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  onClick={() => setHiddenCameraAnalytics([])}
+                  disabled={hiddenCameraAnalytics.length === 0}
+                >
+                  Mostrar todos
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  onClick={() =>
+                    setHiddenCameraAnalytics(visibleCameraAnalytics.map((item) => item.key))
+                  }
+                  disabled={visibleCameraAnalytics.length === 0}
+                >
+                  Ocultar todos
+                </button>
+              </div>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Desmarque os tipos que você não deseja ver nos alertas e contadores.
+            </p>
+            {visibleCameraAnalytics.length === 0 ? (
+              <p className="mt-2 text-[11px] text-slate-400">
+                Nenhum analítico encontrado ainda.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {visibleCameraAnalytics.map((analytic) => {
+                  const isChecked = !hiddenAnalyticsSet.has(analytic.key);
+                  return (
+                    <label
+                      key={analytic.key}
+                      className={`flex items-center gap-2 rounded-full border px-2 py-1 text-[11px] ${
+                        isChecked
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-50 text-slate-500"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3"
+                        checked={isChecked}
+                        onChange={() => {
+                          setHiddenCameraAnalytics((prev) => {
+                            const next = new Set(
+                              prev.map((item) => normalizeAnalyticType(item))
+                            );
+                            if (next.has(analytic.key)) {
+                              next.delete(analytic.key);
+                            } else {
+                              next.add(analytic.key);
+                            }
+                            return Array.from(next);
+                          });
+                        }}
+                      />
+                      <span>{analytic.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {selectedFloorPlan && (
