@@ -111,5 +111,11 @@ export const apiUpload = <T>(path: string, file: File): Promise<T> => {
 export const apiUploadForm = <T>(path: string, formData: FormData): Promise<T> =>
   request<T>("POST", path, formData, { isFormData: true });
 
+export const startCameraStream = (cameraId: number): Promise<void> =>
+  apiPost<void>(`/devices/cameras/${cameraId}/stream/start`, {});
+
+export const stopCameraStream = (cameraId: number): Promise<void> =>
+  apiPost<void>(`/devices/cameras/${cameraId}/stream/stop`, {});
+
 // Exporta o API_BASE_URL corretamente
 export { API_BASE_URL };
