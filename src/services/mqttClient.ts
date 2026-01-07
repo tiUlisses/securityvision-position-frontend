@@ -1,5 +1,5 @@
 // src/services/mqttClient.ts
-import { connect, type IClientOptions, type MqttClient } from "mqtt";
+import mqtt, { type IClientOptions, type MqttClient } from "mqtt";
 import { useSyncExternalStore } from "react";
 
 import { mqttConfig } from "../config/mqtt";
@@ -47,7 +47,7 @@ export const connectMqttClient = (): MqttClient => {
   };
 
   const url = buildMqttUrl();
-  client = connect(url, options);
+  client = mqtt.connect(url, options);
 
   client.on("connect", () => {
     setStatus("connected");
