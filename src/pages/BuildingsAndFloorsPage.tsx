@@ -1056,6 +1056,7 @@ const BuildingsAndFloorsPage: FC = () => {
       building,
       floor,
       deviceCode: code,
+      deviceName: name,
     });
     payload.proxy_path = recalculatedPath;
     payload.central_path = recalculatedPath;

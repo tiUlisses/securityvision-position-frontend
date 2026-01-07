@@ -345,6 +345,7 @@ const DevicesPage: FC = () => {
         building,
         floor,
         deviceCode: camera.code ?? null,
+        deviceName: camera.name ?? null,
       });
       payload.proxy_path = recalculatedPath;
       payload.central_path = recalculatedPath;

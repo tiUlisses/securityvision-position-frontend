@@ -13,6 +13,7 @@ type DevicePathInput = {
   building?: DevicePathBuilding;
   floor?: DevicePathFloor;
   deviceCode?: string | null;
+  deviceName?: string | null;
 };
 
 const normalizeSegment = (value?: string | null): string | null => {
@@ -35,11 +36,12 @@ export const buildDevicePath = ({
   building,
   floor,
   deviceCode,
+  deviceName,
 }: DevicePathInput): string | null => {
   const tenantSegment = normalizeSegment(tenant);
   const buildingSegment = resolveSegment(building?.code, building?.name);
   const floorSegment = resolveSegment(floor?.code, floor?.name);
-  const deviceSegment = normalizeSegment(deviceCode);
+  const deviceSegment = resolveSegment(deviceCode, deviceName);
 
   if (!buildingSegment || !floorSegment || !deviceSegment) {
     return null;
