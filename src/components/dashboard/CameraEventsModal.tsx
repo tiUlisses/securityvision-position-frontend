@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "../common/Modal";
 import type { Device, DeviceEventDTO } from "../../api/types";
-import { publishCameraUplinkCommand } from "../../utils/mqttPublisher";
+import { startUplink, stopUplink } from "../../services/cameras";
 
 function isStatusEvent(evt: DeviceEventDTO): boolean {
   const analytic = (evt.analytic_type || "").toLowerCase();
@@ -30,7 +30,8 @@ export default function CameraEventsModal({
   creatingIncident,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [mqttError, setMqttError] = useState<string | null>(null);
+  const [uplinkError, setUplinkError] = useState<string | null>(null);
+  const uplinkStartedRef = useRef(false);
 
   const hasCentralHost = Boolean(camera.central_media_mtx_ip?.trim());
 
@@ -42,31 +43,32 @@ export default function CameraEventsModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    setMqttError(null);
+    setUplinkError(null);
 
     if (!hasCentralHost) {
-      setMqttError(
+      setUplinkError(
         "Para visualizar esta câmera, cadastre o serviço MediaMTX central."
       );
-      return;
     }
 
-    void publishCameraUplinkCommand(camera, "start").catch((err) => {
-      console.error("Erro ao enviar comando MQTT de start:", err);
-      setMqttError(
-        err instanceof Error
-          ? err.message
-          : "Erro ao enviar comando de start via MQTT."
-      );
-    });
+    if (!uplinkStartedRef.current) {
+      uplinkStartedRef.current = true;
+      void startUplink(camera.id).catch((err) => {
+        console.error("Erro ao iniciar uplink da câmera:", err);
+        setUplinkError(
+          err instanceof Error ? err.message : "Erro ao iniciar uplink da câmera."
+        );
+      });
+    }
 
     return () => {
-      if (!hasCentralHost) return;
-      void publishCameraUplinkCommand(camera, "stop").catch((err) => {
-        console.error("Erro ao enviar comando MQTT de stop:", err);
+      if (!uplinkStartedRef.current) return;
+      void stopUplink(camera.id).catch((err) => {
+        console.error("Erro ao parar uplink da câmera:", err);
       });
+      uplinkStartedRef.current = false;
     };
-  }, [isOpen, camera, hasCentralHost]);
+  }, [isOpen, camera.id, hasCentralHost]);
 
   const selectedEvent = useMemo(() => {
     if (!events.length) return null;
@@ -214,9 +216,9 @@ export default function CameraEventsModal({
 
           {/* Detalhes */}
           <div className="md:w-3/5 border border-slate-800 rounded-lg bg-slate-950 text-xs flex flex-col">
-            {mqttError && (
+            {uplinkError && (
               <div className="border-b border-slate-800 px-3 py-2 text-[11px] text-amber-200 bg-amber-500/10">
-                {mqttError}
+                {uplinkError}
               </div>
             )}
             {selectedEvent ? (
