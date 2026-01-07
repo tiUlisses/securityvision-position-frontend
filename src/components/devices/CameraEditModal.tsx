@@ -12,6 +12,8 @@ interface Device {
   floor_id?: number | null;
   ip_address?: string | null;
   port?: number | null;
+  rtsp_url?: string | null;
+  central_host?: string | null;
   username?: string | null;
   manufacturer?: string | null;
   model?: string | null;
@@ -29,6 +31,8 @@ const CameraEditModal: React.FC<Props> = ({ camera, onClose, onUpdated }) => {
   const [code, setCode] = useState(camera.code || "");
   const [ip, setIp] = useState(camera.ip_address || "");
   const [port, setPort] = useState((camera.port ?? 80).toString());
+  const [rtspUrl, setRtspUrl] = useState(camera.rtsp_url || "");
+  const [centralHost, setCentralHost] = useState(camera.central_host || "");
   const [username, setUsername] = useState(camera.username || "admin");
   const [password, setPassword] = useState(""); // senha nunca vem do backend
   const [manufacturer, setManufacturer] = useState(camera.manufacturer || "Dahua");
@@ -50,6 +54,8 @@ const CameraEditModal: React.FC<Props> = ({ camera, onClose, onUpdated }) => {
       code,
       ip_address: ip.trim(),
       port: Number(port),
+      rtsp_url: rtspUrl.trim(),
+      central_host: centralHost.trim(),
       username: username.trim(),
       manufacturer: manufacturer.trim(),
       model: model.trim(),
@@ -111,6 +117,22 @@ const CameraEditModal: React.FC<Props> = ({ camera, onClose, onUpdated }) => {
           placeholder="Porta"
           value={port}
           onChange={(e) => setPort(e.target.value)}
+        />
+
+        <input
+          type="text"
+          className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
+          placeholder="RTSP URL"
+          value={rtspUrl}
+          onChange={(e) => setRtspUrl(e.target.value)}
+        />
+
+        <input
+          type="text"
+          className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
+          placeholder="Host central (MTX)"
+          value={centralHost}
+          onChange={(e) => setCentralHost(e.target.value)}
         />
 
         <input
