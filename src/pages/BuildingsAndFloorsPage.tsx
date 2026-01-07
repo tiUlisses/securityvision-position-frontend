@@ -16,6 +16,7 @@ import {
   apiDelete,
   API_BASE_URL,
 } from "../api/client";
+import { buildDevicePath } from "../utils/devicePaths";
 import { CameraAnalyticsSelector } from "../components/devices/CameraAnalyticsSelector";
 import { DEFAULT_ANALYTICS_BY_MANUFACTURER } from "../constants/analytics";
 import ManagementCard from "../components/buildings/ManagementCard";
@@ -28,6 +29,7 @@ import CameraListCard from "../components/buildings/CameraListCard";
 export interface Building {
   id: number;
   name: string;
+  code?: string | null;
   description?: string | null;
   address?: string | null;
 }
@@ -35,6 +37,7 @@ export interface Building {
 export interface Floor {
   id: number;
   name: string;
+  code?: string | null;
   level?: number | null;
   building_id: number;
 }
@@ -65,6 +68,9 @@ export interface Device {
   model?: string | null;
   building_id?: number | null;
   floor_id?: number | null;
+  tenant?: string | null;
+  proxy_path?: string | null;
+  central_path?: string | null;
   analytics?: string[] | null;
 
   floor_plan_id: number | null;
@@ -1039,6 +1045,17 @@ const BuildingsAndFloorsPage: FC = () => {
       manufacturer: newCameraManufacturer.trim(),
       model: newCameraModel.trim(),
     };
+
+    const building = buildings.find((b) => b.id === selectedBuildingId) ?? null;
+    const floor = floors.find((f) => f.id === selectedFloorId) ?? null;
+    const recalculatedPath = buildDevicePath({
+      tenant: null,
+      building,
+      floor,
+      deviceCode: code,
+    });
+    payload.proxy_path = recalculatedPath;
+    payload.central_path = recalculatedPath;
 
     // Só envia analytics se tiver algo selecionado
     if (newCameraAnalytics && newCameraAnalytics.length > 0) {

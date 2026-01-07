@@ -1,9 +1,11 @@
 import React, { FC, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut, apiPost, apiPatch, apiDelete } from "../api/client";
+import { buildDevicePath } from "../utils/devicePaths";
 
 interface Building {
   id: number;
   name: string;
+  code?: string | null;
   description?: string | null;
   address?: string | null;
 }
@@ -11,6 +13,7 @@ interface Building {
 interface Floor {
   id: number;
   name: string;
+  code?: string | null;
   level?: number | null;
   building_id: number;
 }
@@ -27,8 +30,11 @@ interface Device {
   username?: string | null;
   manufacturer?: string | null;
   model?: string | null;
+  tenant?: string | null;
   building_id?: number | null;
   floor_id?: number | null;
+  proxy_path?: string | null;
+  central_path?: string | null;
   floor_plan_id: number | null;
   pos_x: number | null;
   pos_y: number | null;
@@ -331,6 +337,17 @@ const DevicesPage: FC = () => {
       payload.floor_plan_id = null;
       payload.pos_x = null;
       payload.pos_y = null;
+
+      const building = buildings.find((b) => b.id === newBuildingId) ?? null;
+      const floor = floors.find((f) => f.id === newFloorId) ?? null;
+      const recalculatedPath = buildDevicePath({
+        tenant: camera.tenant ?? null,
+        building,
+        floor,
+        deviceCode: camera.code ?? null,
+      });
+      payload.proxy_path = recalculatedPath;
+      payload.central_path = recalculatedPath;
     }
 
     try {
