@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "../common/Modal";
 import type { Device, DeviceEventDTO } from "../../api/types";
 import { startUplink, stopUplink } from "../../services/cameras";
+import { useToast } from "../../contexts/ToastContext";
 
 function isStatusEvent(evt: DeviceEventDTO): boolean {
   const analytic = (evt.analytic_type || "").toLowerCase();
@@ -29,10 +30,8 @@ export default function CameraStreamModal({
   creatingIncident,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [uplinkError, setUplinkError] = useState<string | null>(null);
   const uplinkStartedRef = useRef(false);
-
-  const hasCentralHost = Boolean(camera.central_media_mtx_ip?.trim());
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -40,17 +39,6 @@ export default function CameraStreamModal({
   }, [isOpen, events]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    setUplinkError(null);
-  }, [isOpen, camera.id]);
-
-  useEffect(() => {
-    if (!hasCentralHost) {
-      setUplinkError(
-        "Para visualizar esta câmera, cadastre o serviço MediaMTX central."
-      );
-    }
-
     if (!isOpen) {
       uplinkStartedRef.current = false;
       return;
@@ -60,7 +48,7 @@ export default function CameraStreamModal({
       uplinkStartedRef.current = true;
       void startUplink(camera.id).catch((err) => {
         console.error("Erro ao iniciar uplink da câmera:", err);
-        setUplinkError(
+        toast.error(
           err instanceof Error ? err.message : "Erro ao iniciar uplink da câmera."
         );
       });
@@ -70,10 +58,13 @@ export default function CameraStreamModal({
       if (!uplinkStartedRef.current) return;
       void stopUplink(camera.id).catch((err) => {
         console.error("Erro ao parar uplink da câmera:", err);
+        toast.error(
+          err instanceof Error ? err.message : "Erro ao parar uplink da câmera."
+        );
       });
       uplinkStartedRef.current = false;
     };
-  }, [isOpen, camera.id, hasCentralHost]);
+  }, [isOpen, camera.id, toast]);
 
   const selectedEvent = useMemo(() => {
     if (!events.length) return null;
@@ -257,11 +248,6 @@ export default function CameraStreamModal({
             </div>
 
             <div className="flex flex-1 flex-col gap-3 px-3 py-3">
-              {uplinkError && (
-                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
-                  {uplinkError}
-                </div>
-              )}
               <div className="rounded-lg border border-slate-800 bg-black/50 p-2">
                 {streamUrl ? (
                   <iframe
