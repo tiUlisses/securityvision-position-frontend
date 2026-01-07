@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../common/Modal";
-import { startCameraStream, stopCameraStream } from "../../api/client";
 import type { Device, DeviceEventDTO } from "../../api/types";
+import { publishCameraUplinkCommand } from "../../utils/mqttPublisher";
 
 function isStatusEvent(evt: DeviceEventDTO): boolean {
   const analytic = (evt.analytic_type || "").toLowerCase();
@@ -29,6 +29,9 @@ export default function CameraStreamModal({
   creatingIncident,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [mqttError, setMqttError] = useState<string | null>(null);
+
+  const hasCentralHost = Boolean(camera.central_host?.trim());
 
   useEffect(() => {
     if (!isOpen) return;
@@ -37,12 +40,35 @@ export default function CameraStreamModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    void startCameraStream(camera.id);
+    setMqttError(null);
+  }, [isOpen, camera.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (!hasCentralHost) {
+      setMqttError(
+        "Para visualizar esta câmera, cadastre o serviço MediaMTX central."
+      );
+      return;
+    }
+
+    void publishCameraUplinkCommand(camera, "start").catch((err) => {
+      console.error("Erro ao enviar comando MQTT de start:", err);
+      setMqttError(
+        err instanceof Error
+          ? err.message
+          : "Erro ao enviar comando de start via MQTT."
+      );
+    });
 
     return () => {
-      void stopCameraStream(camera.id);
+      if (!hasCentralHost) return;
+      void publishCameraUplinkCommand(camera, "stop").catch((err) => {
+        console.error("Erro ao enviar comando MQTT de stop:", err);
+      });
     };
-  }, [isOpen, camera.id]);
+  }, [isOpen, camera, hasCentralHost]);
 
   const selectedEvent = useMemo(() => {
     if (!events.length) return null;
@@ -226,6 +252,11 @@ export default function CameraStreamModal({
             </div>
 
             <div className="flex flex-1 flex-col gap-3 px-3 py-3">
+              {mqttError && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                  {mqttError}
+                </div>
+              )}
               <div className="rounded-lg border border-slate-800 bg-black/50 p-2">
                 {streamUrl ? (
                   <iframe
