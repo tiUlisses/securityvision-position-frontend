@@ -93,7 +93,6 @@ export function DashboardPage() {
     Record<number, number | null>
   >({});
   const [cameraHasNewEvent, setCameraHasNewEvent] = useState<Record<number, boolean>>({});
-  const [activeCameraId, setActiveCameraId] = useState<number | null>(null);
   const [availableCameraAnalytics, setAvailableCameraAnalytics] = useState<string[]>([]);
   const [hiddenCameraAnalytics, setHiddenCameraAnalytics] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -195,7 +194,6 @@ export function DashboardPage() {
       setSelectedFloorPlanId("");
       setOccupancyByGatewayId({});
       setActiveGatewayDetailsId(null);
-      setActiveCameraId(null);
       return;
     }
 
@@ -211,7 +209,6 @@ export function DashboardPage() {
 
         setOccupancyByGatewayId({});
         setActiveGatewayDetailsId(null);
-        setActiveCameraId(null);
       } catch {
         setFloorPlans([]);
         setSelectedFloorPlanId("");
@@ -546,7 +543,7 @@ export function DashboardPage() {
   };
 
   const handleCameraPinClick = (cam: Device) => {
-    setActiveCameraId((cur) => (cur === cam.id ? null : cam.id));
+    setCameraModalCameraId(cam.id);
     setCameraHasNewEvent((prev) => ({ ...prev, [cam.id]: false }));
     setCameraEventCountById((prev) => ({ ...prev, [cam.id]: 0 }));
   };
@@ -780,7 +777,6 @@ export function DashboardPage() {
                   setSelectedFloorPlanId("");
                   setOccupancyByGatewayId({});
                   setActiveGatewayDetailsId(null);
-                  setActiveCameraId(null);
                 }}
               >
                 <option value="">Selecione um prédio…</option>
@@ -802,7 +798,6 @@ export function DashboardPage() {
                   setSelectedFloorPlanId(value ? Number(value) : "");
                   setOccupancyByGatewayId({});
                   setActiveGatewayDetailsId(null);
-                  setActiveCameraId(null);
                 }}
                 disabled={!selectedBuildingId || floorPlans.length === 0}
               >
@@ -1035,7 +1030,6 @@ export function DashboardPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveGatewayDetailsId((cur) => (cur === gw.id ? null : gw.id));
-                              setActiveCameraId(null);
                             }}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -1093,12 +1087,11 @@ export function DashboardPage() {
                       const online = isCameraOnline(cam);
                       const eventCount = cameraEventCountById[cam.id] || 0;
                       const hasNew = cameraHasNewEvent[cam.id];
-                      const isActive = activeCameraId === cam.id;
 
                       return (
                         <div
                           key={`cam-${cam.id}`}
-                          className="absolute -translate-x-1/2 -translate-y-1/2"
+                          className="absolute -translate-x-1/2 -translate-y-1/2 group"
                           style={{ left, top }}
                         >
                           <button
@@ -1142,8 +1135,7 @@ export function DashboardPage() {
                             </div>
                           </button>
 
-                          {isActive && (
-                            <div className="mt-2 w-64 rounded-lg border border-slate-800 bg-slate-900/95 p-2 text-[11px] text-slate-100 shadow-lg pointer-events-auto">
+                          <div className="mt-2 w-64 rounded-lg border border-slate-800 bg-slate-900/95 p-2 text-[11px] text-slate-100 shadow-lg opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
                               <div className="mb-1 flex items-center justify-between">
                                 <span className="text-[10px] font-semibold uppercase text-slate-400">
                                   Último evento da câmera
@@ -1182,7 +1174,6 @@ export function DashboardPage() {
                                 </button>
                               </div>
                             </div>
-                          )}
                         </div>
                       );
                     })}
