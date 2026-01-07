@@ -7,6 +7,7 @@ import React, {
     ReactNode,
   } from "react";
   import { apiGet, apiPost } from "../api/client";
+  import { connectMqttClient, disconnectMqttClient } from "../services/mqttClient";
   
   interface AuthUser {
     id: number;
@@ -75,6 +76,14 @@ import React, {
         }
       })();
     }, []);
+
+    useEffect(() => {
+      if (user) {
+        connectMqttClient();
+      } else {
+        disconnectMqttClient();
+      }
+    }, [user]);
   
     const login = async ({ email, password }: LoginInput) => {
       const tokenResp = await apiPost<{ access_token: string; token_type: string }>(
