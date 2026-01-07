@@ -62,7 +62,7 @@ export interface Device {
   ip_address?: string | null;
   port?: number | null;
   rtsp_url?: string | null;
-  central_host?: string | null;
+  central_media_mtx_ip?: string | null;
   username?: string | null;
   manufacturer?: string | null;
   model?: string | null;
@@ -103,7 +103,9 @@ const CameraEditModal: FC<CameraEditModalProps> = ({
   const [ip, setIp] = useState(camera.ip_address || "");
   const [port, setPort] = useState((camera.port ?? 80).toString());
   const [rtspUrl, setRtspUrl] = useState(camera.rtsp_url || "");
-  const [centralHost, setCentralHost] = useState(camera.central_host || "");
+  const [centralMediaMtxIp, setCentralMediaMtxIp] = useState(
+    camera.central_media_mtx_ip || ""
+  );
   const [username, setUsername] = useState(camera.username || "admin");
   const [password, setPassword] = useState(""); // senha nunca volta do backend
   const [manufacturer, setManufacturer] = useState(
@@ -131,7 +133,7 @@ const CameraEditModal: FC<CameraEditModalProps> = ({
       ip_address: ip.trim(),
       port: Number(port) || 80,
       rtsp_url: rtspUrl.trim(),
-      central_host: centralHost.trim(),
+      central_media_mtx_ip: centralMediaMtxIp.trim(),
       username: username.trim() || "admin",
       manufacturer: manufacturer.trim(),
       model: model.trim(),
@@ -209,8 +211,8 @@ const CameraEditModal: FC<CameraEditModalProps> = ({
             type="text"
             className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
             placeholder="Host central (MTX)"
-            value={centralHost}
-            onChange={(e) => setCentralHost(e.target.value)}
+            value={centralMediaMtxIp}
+            onChange={(e) => setCentralMediaMtxIp(e.target.value)}
           />
           <input
             type="text"
@@ -782,7 +784,8 @@ const BuildingsAndFloorsPage: FC = () => {
   const [newCameraIP, setNewCameraIP] = useState("");
   const [newCameraPort, setNewCameraPort] = useState("80");
   const [newCameraRtspUrl, setNewCameraRtspUrl] = useState("");
-  const [newCameraCentralHost, setNewCameraCentralHost] = useState("");
+  const [newCameraCentralMediaMtxIp, setNewCameraCentralMediaMtxIp] =
+    useState("");
   const [newCameraUsername, setNewCameraUsername] = useState("admin");
   const [newCameraPassword, setNewCameraPassword] = useState("");
   const [newCameraManufacturer, setNewCameraManufacturer] =
@@ -1024,7 +1027,7 @@ const BuildingsAndFloorsPage: FC = () => {
     const code = newCameraCode.trim();
     const ip = newCameraIP.trim();
     const rtspUrl = newCameraRtspUrl.trim();
-    const centralHost = newCameraCentralHost.trim();
+    const centralMediaMtxIp = newCameraCentralMediaMtxIp.trim();
 
     if (!name || !code || !ip) {
       alert("Nome, código e IP são obrigatórios.");
@@ -1039,7 +1042,7 @@ const BuildingsAndFloorsPage: FC = () => {
       ip_address: ip,
       port: Number(newCameraPort) || 80,
       rtsp_url: rtspUrl,
-      central_host: centralHost,
+      central_media_mtx_ip: centralMediaMtxIp,
       username: newCameraUsername.trim() || "admin",
       password: newCameraPassword,
       manufacturer: newCameraManufacturer.trim(),
@@ -1072,7 +1075,7 @@ const BuildingsAndFloorsPage: FC = () => {
       setNewCameraIP("");
       setNewCameraPort("80");
       setNewCameraRtspUrl("");
-      setNewCameraCentralHost("");
+      setNewCameraCentralMediaMtxIp("");
       setNewCameraUsername("admin");
       setNewCameraPassword("");
       setNewCameraManufacturer("Dahua");
@@ -1282,7 +1285,7 @@ const BuildingsAndFloorsPage: FC = () => {
                 ip: newCameraIP,
                 port: newCameraPort,
                 rtspUrl: newCameraRtspUrl,
-                centralHost: newCameraCentralHost,
+                centralMediaMtxIp: newCameraCentralMediaMtxIp,
                 username: newCameraUsername,
                 password: newCameraPassword,
                 manufacturer: newCameraManufacturer,
@@ -1306,8 +1309,8 @@ const BuildingsAndFloorsPage: FC = () => {
                   case "rtspUrl":
                     setNewCameraRtspUrl(value);
                     break;
-                  case "centralHost":
-                    setNewCameraCentralHost(value);
+                  case "centralMediaMtxIp":
+                    setNewCameraCentralMediaMtxIp(value);
                     break;
                   case "username":
                     setNewCameraUsername(value);

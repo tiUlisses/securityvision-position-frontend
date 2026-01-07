@@ -13,7 +13,7 @@ interface Device {
   ip_address?: string | null;
   port?: number | null;
   rtsp_url?: string | null;
-  central_host?: string | null;
+  central_media_mtx_ip?: string | null;
   proxy_path?: string | null;
   central_path?: string | null;
   username?: string | null;
@@ -34,7 +34,9 @@ const CameraEditModal: React.FC<Props> = ({ camera, onClose, onUpdated }) => {
   const [ip, setIp] = useState(camera.ip_address || "");
   const [port, setPort] = useState((camera.port ?? 80).toString());
   const [rtspUrl, setRtspUrl] = useState(camera.rtsp_url || "");
-  const [centralHost, setCentralHost] = useState(camera.central_host || "");
+  const [centralMediaMtxIp, setCentralMediaMtxIp] = useState(
+    camera.central_media_mtx_ip || ""
+  );
   const [username, setUsername] = useState(camera.username || "admin");
   const [password, setPassword] = useState(""); // senha nunca vem do backend
   const [manufacturer, setManufacturer] = useState(camera.manufacturer || "Dahua");
@@ -57,7 +59,7 @@ const CameraEditModal: React.FC<Props> = ({ camera, onClose, onUpdated }) => {
       ip_address: ip.trim(),
       port: Number(port),
       rtsp_url: rtspUrl.trim(),
-      central_host: centralHost.trim(),
+      central_media_mtx_ip: centralMediaMtxIp.trim(),
       username: username.trim(),
       manufacturer: manufacturer.trim(),
       model: model.trim(),
@@ -133,8 +135,8 @@ const CameraEditModal: React.FC<Props> = ({ camera, onClose, onUpdated }) => {
           type="text"
           className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
           placeholder="Host central (MTX)"
-          value={centralHost}
-          onChange={(e) => setCentralHost(e.target.value)}
+          value={centralMediaMtxIp}
+          onChange={(e) => setCentralMediaMtxIp(e.target.value)}
         />
 
         <input

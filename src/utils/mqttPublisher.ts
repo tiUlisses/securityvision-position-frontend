@@ -167,7 +167,7 @@ export const publishCameraUplinkCommand = (
   action: CameraUplinkAction,
   options?: { ttlSeconds?: number; centralSrtPort?: number }
 ): Promise<void> => {
-  const centralHost = normalizePathSegment(camera.central_host);
+  const centralHost = normalizePathSegment(camera.central_media_mtx_ip);
   if (!centralHost) {
     return Promise.reject(
       new Error("Câmera sem MediaMTX central cadastrado.")
