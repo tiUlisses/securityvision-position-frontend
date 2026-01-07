@@ -258,6 +258,14 @@ export default function CameraStreamModal({
                   streamError ? (
                     <div className="flex h-[360px] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-700 px-4 text-center text-[11px] text-slate-400">
                       <span>Não foi possível carregar o preview do stream.</span>
+                      <div className="w-full overflow-hidden rounded-md border border-slate-800 bg-black">
+                        <iframe
+                          src={streamUrl}
+                          title="Stream da câmera"
+                          className="h-[320px] w-full"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                       <a
                         href={streamUrl}
                         target="_blank"
