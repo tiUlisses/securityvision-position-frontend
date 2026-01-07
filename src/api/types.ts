@@ -121,7 +121,7 @@ export interface DeviceEntity {
   mac_address: string | null;
   description: string | null;
   rtsp_url?: string | null;
-  central_host?: string | null;
+  central_media_mtx_ip?: string | null;
   proxy_path?: string | null;
   central_path?: string | null;
   floor_plan_id: number | null;

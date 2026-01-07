@@ -32,7 +32,7 @@ export default function CameraEventsModal({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [mqttError, setMqttError] = useState<string | null>(null);
 
-  const hasCentralHost = Boolean(camera.central_host?.trim());
+  const hasCentralHost = Boolean(camera.central_media_mtx_ip?.trim());
 
   useEffect(() => {
     if (!isOpen) return;

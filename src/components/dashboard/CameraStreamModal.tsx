@@ -31,7 +31,7 @@ export default function CameraStreamModal({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [mqttError, setMqttError] = useState<string | null>(null);
 
-  const hasCentralHost = Boolean(camera.central_host?.trim());
+  const hasCentralHost = Boolean(camera.central_media_mtx_ip?.trim());
 
   useEffect(() => {
     if (!isOpen) return;
@@ -157,7 +157,7 @@ export default function CameraStreamModal({
   }, [events]);
 
   const streamUrl = useMemo(() => {
-    const centralHost = camera.central_host?.trim() || "";
+    const centralHost = camera.central_media_mtx_ip?.trim() || "";
     const centralPath = camera.central_path?.trim() || "";
 
     if (!centralHost || !centralPath) return null;
@@ -168,7 +168,7 @@ export default function CameraStreamModal({
     const normalizedPath = centralPath.replace(/^\/+|\/+$/g, "");
 
     return `https://${normalizedHost}/${normalizedPath}/`;
-  }, [camera.central_host, camera.central_path]);
+  }, [camera.central_media_mtx_ip, camera.central_path]);
 
   if (!isOpen) return null;
 
