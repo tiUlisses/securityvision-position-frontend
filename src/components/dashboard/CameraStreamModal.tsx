@@ -30,6 +30,7 @@ export default function CameraStreamModal({
   creatingIncident,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [streamError, setStreamError] = useState(false);
   const uplinkStartedRef = useRef(false);
   const { toast } = useToast();
 
@@ -166,6 +167,10 @@ export default function CameraStreamModal({
     return `https://${normalizedHost}/${normalizedPath}/`;
   }, [camera.central_media_mtx_ip, camera.central_path]);
 
+  useEffect(() => {
+    setStreamError(false);
+  }, [streamUrl]);
+
   if (!isOpen) return null;
 
   return (
@@ -250,12 +255,26 @@ export default function CameraStreamModal({
             <div className="flex flex-1 flex-col gap-3 px-3 py-3">
               <div className="rounded-lg border border-slate-800 bg-black/50 p-2">
                 {streamUrl ? (
-                  <iframe
-                    title="Stream da câmera"
-                    src={streamUrl}
-                    className="h-[360px] w-full rounded-md border border-slate-800 bg-black"
-                    allow="autoplay; fullscreen"
-                  />
+                  streamError ? (
+                    <div className="flex h-[360px] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-700 px-4 text-center text-[11px] text-slate-400">
+                      <span>Não foi possível carregar o preview do stream.</span>
+                      <a
+                        href={streamUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sky-400 hover:text-sky-300"
+                      >
+                        Abrir stream em nova aba
+                      </a>
+                    </div>
+                  ) : (
+                    <img
+                      src={streamUrl}
+                      alt="Stream da câmera"
+                      className="h-[360px] w-full rounded-md border border-slate-800 bg-black object-contain"
+                      onError={() => setStreamError(true)}
+                    />
+                  )
                 ) : (
                   <div className="flex h-[360px] items-center justify-center rounded-md border border-dashed border-slate-700 text-[11px] text-slate-400">
                     Stream indisponível. Configure o host e o caminho do central para habilitar o
