@@ -2,7 +2,6 @@
 import React, { useMemo } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { useMqttStatus } from "../../services/mqttClient";
 
 export type NavItem = {
   key: string;
@@ -17,7 +16,6 @@ interface AppLayoutProps {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ navItems }) => {
   const { user, logout } = useAuth();
-  const mqttStatus = useMqttStatus();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -89,27 +87,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ navItems }) => {
           </div>
 
           <div className="flex items-center gap-3">
-            <span
-              className={`hidden md:inline-flex items-center rounded-full border px-2 py-1 text-[11px] ${
-                mqttStatus === "connected"
-                  ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-200"
-                  : mqttStatus === "connecting"
-                  ? "border-amber-500/60 bg-amber-500/10 text-amber-200"
-                  : mqttStatus === "error"
-                  ? "border-rose-500/60 bg-rose-500/10 text-rose-200"
-                  : "border-slate-700 bg-slate-900 text-slate-300"
-              }`}
-              title="Status de conexão MQTT"
-            >
-              MQTT:{" "}
-              {mqttStatus === "connected"
-                ? "conectado"
-                : mqttStatus === "connecting"
-                ? "conectando"
-                : mqttStatus === "error"
-                ? "erro"
-                : "desconectado"}
-            </span>
             <div className="hidden sm:flex flex-col text-right min-w-0">
               <span className="text-xs font-semibold text-slate-100 truncate max-w-[220px]">
                 {user?.full_name || user?.email || "Usuário"}
