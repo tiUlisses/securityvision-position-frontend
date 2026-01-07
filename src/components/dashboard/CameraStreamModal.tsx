@@ -31,7 +31,11 @@ export default function CameraStreamModal({
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [streamError, setStreamError] = useState(false);
+  const [webrtcError, setWebrtcError] = useState(false);
   const uplinkStartedRef = useRef(false);
+  const webrtcSessionUrlRef = useRef<string | null>(null);
+  const webrtcPcRef = useRef<RTCPeerConnection | null>(null);
+  const webrtcVideoRef = useRef<HTMLVideoElement | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -169,7 +173,111 @@ export default function CameraStreamModal({
 
   useEffect(() => {
     setStreamError(false);
+    setWebrtcError(false);
   }, [streamUrl]);
+
+  const startWebRtcPlayback = async (url: string) => {
+    try {
+      setWebrtcError(false);
+
+      if (webrtcPcRef.current) {
+        webrtcPcRef.current.close();
+        webrtcPcRef.current = null;
+      }
+
+      const pc = new RTCPeerConnection();
+      webrtcPcRef.current = pc;
+
+      pc.addTransceiver("video", { direction: "recvonly" });
+      pc.addTransceiver("audio", { direction: "recvonly" });
+
+      pc.ontrack = (event) => {
+        if (!webrtcVideoRef.current) return;
+        const [stream] = event.streams;
+        if (stream) {
+          webrtcVideoRef.current.srcObject = stream;
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      await new Promise<void>((resolve) => {
+        if (pc.iceGatheringState === "complete") {
+          resolve();
+          return;
+        }
+        const onStateChange = () => {
+          if (pc.iceGatheringState === "complete") {
+            pc.removeEventListener("icegatheringstatechange", onStateChange);
+            resolve();
+          }
+        };
+        pc.addEventListener("icegatheringstatechange", onStateChange);
+      });
+
+      const offerSdp = pc.localDescription?.sdp;
+      if (!offerSdp) throw new Error("Oferta WebRTC indisponível.");
+
+      const response = await fetch(`${url}whep`, {
+        method: "POST",
+        headers: { "Content-Type": "application/sdp" },
+        body: offerSdp,
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha ao iniciar sessão WebRTC.");
+      }
+
+      const answerSdp = await response.text();
+      const sessionUrl = response.headers.get("Location");
+      webrtcSessionUrlRef.current = sessionUrl;
+
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+      if (sessionUrl) {
+        pc.addEventListener("icecandidate", (event) => {
+          if (!event.candidate) return;
+          void fetch(sessionUrl, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/trickle-ice-sdpfrag" },
+            body: `a=${event.candidate.candidate}\r\n`,
+          }).catch(() => {});
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao iniciar WebRTC:", err);
+      setWebrtcError(true);
+    }
+  };
+
+  const stopWebRtcPlayback = async () => {
+    if (webrtcPcRef.current) {
+      webrtcPcRef.current.close();
+      webrtcPcRef.current = null;
+    }
+    if (webrtcVideoRef.current) {
+      webrtcVideoRef.current.srcObject = null;
+    }
+    if (webrtcSessionUrlRef.current) {
+      const sessionUrl = webrtcSessionUrlRef.current;
+      webrtcSessionUrlRef.current = null;
+      await fetch(sessionUrl, { method: "DELETE" }).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !streamUrl || !streamError) {
+      void stopWebRtcPlayback();
+      return;
+    }
+
+    void startWebRtcPlayback(streamUrl);
+
+    return () => {
+      void stopWebRtcPlayback();
+    };
+  }, [isOpen, streamUrl, streamError]);
 
   if (!isOpen) return null;
 
@@ -258,6 +366,22 @@ export default function CameraStreamModal({
                   streamError ? (
                     <div className="flex h-[360px] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-700 px-4 text-center text-[11px] text-slate-400">
                       <span>Não foi possível carregar o preview do stream.</span>
+                      {webrtcError ? (
+                        <span className="text-[10px] text-slate-500">
+                          A reprodução WebRTC também falhou.
+                        </span>
+                      ) : (
+                        <div className="w-full overflow-hidden rounded-md border border-slate-800 bg-black">
+                          <video
+                            ref={webrtcVideoRef}
+                            className="h-[320px] w-full bg-black"
+                            autoPlay
+                            playsInline
+                            muted
+                            controls
+                          />
+                        </div>
+                      )}
                       <a
                         href={streamUrl}
                         target="_blank"
