@@ -36,6 +36,7 @@ export default function CameraStreamModal({
   const webrtcSessionUrlRef = useRef<string | null>(null);
   const webrtcPcRef = useRef<RTCPeerConnection | null>(null);
   const webrtcVideoRef = useRef<HTMLVideoElement | null>(null);
+  const webrtcPlayTimeoutRef = useRef<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -185,6 +186,11 @@ export default function CameraStreamModal({
         webrtcPcRef.current = null;
       }
 
+      if (webrtcPlayTimeoutRef.current) {
+        window.clearTimeout(webrtcPlayTimeoutRef.current);
+        webrtcPlayTimeoutRef.current = null;
+      }
+
       const pc = new RTCPeerConnection();
       webrtcPcRef.current = pc;
 
@@ -195,7 +201,22 @@ export default function CameraStreamModal({
         if (!webrtcVideoRef.current) return;
         const [stream] = event.streams;
         if (stream) {
-          webrtcVideoRef.current.srcObject = stream;
+          const video = webrtcVideoRef.current;
+          video.srcObject = stream;
+          const schedulePlay = () => {
+            if (webrtcPlayTimeoutRef.current) {
+              window.clearTimeout(webrtcPlayTimeoutRef.current);
+            }
+            webrtcPlayTimeoutRef.current = window.setTimeout(() => {
+              void video.play().catch(() => {});
+            }, 2000);
+          };
+
+          if (video.readyState >= 2) {
+            schedulePlay();
+          } else {
+            video.addEventListener("loadeddata", schedulePlay, { once: true });
+          }
         }
       };
 
@@ -255,6 +276,10 @@ export default function CameraStreamModal({
     if (webrtcPcRef.current) {
       webrtcPcRef.current.close();
       webrtcPcRef.current = null;
+    }
+    if (webrtcPlayTimeoutRef.current) {
+      window.clearTimeout(webrtcPlayTimeoutRef.current);
+      webrtcPlayTimeoutRef.current = null;
     }
     if (webrtcVideoRef.current) {
       webrtcVideoRef.current.srcObject = null;
@@ -375,7 +400,6 @@ export default function CameraStreamModal({
                           <video
                             ref={webrtcVideoRef}
                             className="h-[320px] w-full bg-black"
-                            autoPlay
                             playsInline
                             muted
                             controls
