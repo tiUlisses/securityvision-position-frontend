@@ -122,6 +122,8 @@ export interface DeviceEntity {
   description: string | null;
   rtsp_url?: string | null;
   central_host?: string | null;
+  proxy_path?: string | null;
+  central_path?: string | null;
   floor_plan_id: number | null;
   pos_x: number | null;
   pos_y: number | null;

@@ -14,6 +14,8 @@ interface Device {
   port?: number | null;
   rtsp_url?: string | null;
   central_host?: string | null;
+  proxy_path?: string | null;
+  central_path?: string | null;
   username?: string | null;
   manufacturer?: string | null;
   model?: string | null;
