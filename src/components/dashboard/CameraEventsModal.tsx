@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "../common/Modal";
 import type { Device, DeviceEventDTO } from "../../api/types";
 import { startUplink, stopUplink } from "../../services/cameras";
+import { useToast } from "../../contexts/ToastContext";
 
 function isStatusEvent(evt: DeviceEventDTO): boolean {
   const analytic = (evt.analytic_type || "").toLowerCase();
@@ -30,10 +31,8 @@ export default function CameraEventsModal({
   creatingIncident,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [uplinkError, setUplinkError] = useState<string | null>(null);
   const uplinkStartedRef = useRef(false);
-
-  const hasCentralHost = Boolean(camera.central_media_mtx_ip?.trim());
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -43,19 +42,11 @@ export default function CameraEventsModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    setUplinkError(null);
-
-    if (!hasCentralHost) {
-      setUplinkError(
-        "Para visualizar esta câmera, cadastre o serviço MediaMTX central."
-      );
-    }
-
     if (!uplinkStartedRef.current) {
       uplinkStartedRef.current = true;
       void startUplink(camera.id).catch((err) => {
         console.error("Erro ao iniciar uplink da câmera:", err);
-        setUplinkError(
+        toast.error(
           err instanceof Error ? err.message : "Erro ao iniciar uplink da câmera."
         );
       });
@@ -65,10 +56,13 @@ export default function CameraEventsModal({
       if (!uplinkStartedRef.current) return;
       void stopUplink(camera.id).catch((err) => {
         console.error("Erro ao parar uplink da câmera:", err);
+        toast.error(
+          err instanceof Error ? err.message : "Erro ao parar uplink da câmera."
+        );
       });
       uplinkStartedRef.current = false;
     };
-  }, [isOpen, camera.id, hasCentralHost]);
+  }, [isOpen, camera.id, toast]);
 
   const selectedEvent = useMemo(() => {
     if (!events.length) return null;
@@ -216,11 +210,6 @@ export default function CameraEventsModal({
 
           {/* Detalhes */}
           <div className="md:w-3/5 border border-slate-800 rounded-lg bg-slate-950 text-xs flex flex-col">
-            {uplinkError && (
-              <div className="border-b border-slate-800 px-3 py-2 text-[11px] text-amber-200 bg-amber-500/10">
-                {uplinkError}
-              </div>
-            )}
             {selectedEvent ? (
               <>
                 <div className="border-b border-slate-800 px-3 py-2">
