@@ -41,8 +41,12 @@ export const buildDevicePath = ({
   const floorSegment = resolveSegment(floor?.code, floor?.name);
   const deviceSegment = normalizeSegment(deviceCode);
 
-  if (!tenantSegment || !buildingSegment || !floorSegment || !deviceSegment) {
+  if (!buildingSegment || !floorSegment || !deviceSegment) {
     return null;
+  }
+
+  if (!tenantSegment) {
+    return `${buildingSegment}/${floorSegment}/${deviceSegment}`;
   }
 
   return `${tenantSegment}/${buildingSegment}/${floorSegment}/${deviceSegment}`;
