@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../common/Modal";
+import { startCameraStream, stopCameraStream } from "../../api/client";
 import type { Device, DeviceEventDTO } from "../../api/types";
 
 function isStatusEvent(evt: DeviceEventDTO): boolean {
@@ -34,6 +35,15 @@ export default function CameraEventsModal({
     if (!isOpen) return;
     setSelectedId(events[0]?.id ?? null);
   }, [isOpen, events]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void startCameraStream(camera.id);
+
+    return () => {
+      void stopCameraStream(camera.id);
+    };
+  }, [isOpen, camera.id]);
 
   const selectedEvent = useMemo(() => {
     if (!events.length) return null;
