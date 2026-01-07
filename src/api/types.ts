@@ -120,6 +120,8 @@ export interface DeviceEntity {
   type: string;
   mac_address: string | null;
   description: string | null;
+  rtsp_url?: string | null;
+  central_host?: string | null;
   floor_plan_id: number | null;
   pos_x: number | null;
   pos_y: number | null;

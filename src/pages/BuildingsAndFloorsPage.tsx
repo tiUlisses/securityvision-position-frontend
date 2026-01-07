@@ -58,6 +58,8 @@ export interface Device {
   // Campos específicos de câmera (podem ser null p/ gateways)
   ip_address?: string | null;
   port?: number | null;
+  rtsp_url?: string | null;
+  central_host?: string | null;
   username?: string | null;
   manufacturer?: string | null;
   model?: string | null;
@@ -94,6 +96,8 @@ const CameraEditModal: FC<CameraEditModalProps> = ({
   const [code, setCode] = useState(camera.code || "");
   const [ip, setIp] = useState(camera.ip_address || "");
   const [port, setPort] = useState((camera.port ?? 80).toString());
+  const [rtspUrl, setRtspUrl] = useState(camera.rtsp_url || "");
+  const [centralHost, setCentralHost] = useState(camera.central_host || "");
   const [username, setUsername] = useState(camera.username || "admin");
   const [password, setPassword] = useState(""); // senha nunca volta do backend
   const [manufacturer, setManufacturer] = useState(
@@ -120,6 +124,8 @@ const CameraEditModal: FC<CameraEditModalProps> = ({
       code: code.trim(),
       ip_address: ip.trim(),
       port: Number(port) || 80,
+      rtsp_url: rtspUrl.trim(),
+      central_host: centralHost.trim(),
       username: username.trim() || "admin",
       manufacturer: manufacturer.trim(),
       model: model.trim(),
@@ -185,6 +191,20 @@ const CameraEditModal: FC<CameraEditModalProps> = ({
             placeholder="Porta (80)"
             value={port}
             onChange={(e) => setPort(e.target.value)}
+          />
+          <input
+            type="text"
+            className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
+            placeholder="RTSP URL"
+            value={rtspUrl}
+            onChange={(e) => setRtspUrl(e.target.value)}
+          />
+          <input
+            type="text"
+            className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100"
+            placeholder="Host central (MTX)"
+            value={centralHost}
+            onChange={(e) => setCentralHost(e.target.value)}
           />
           <input
             type="text"
@@ -755,6 +775,8 @@ const BuildingsAndFloorsPage: FC = () => {
   const [newCameraCode, setNewCameraCode] = useState("");
   const [newCameraIP, setNewCameraIP] = useState("");
   const [newCameraPort, setNewCameraPort] = useState("80");
+  const [newCameraRtspUrl, setNewCameraRtspUrl] = useState("");
+  const [newCameraCentralHost, setNewCameraCentralHost] = useState("");
   const [newCameraUsername, setNewCameraUsername] = useState("admin");
   const [newCameraPassword, setNewCameraPassword] = useState("");
   const [newCameraManufacturer, setNewCameraManufacturer] =
@@ -995,6 +1017,8 @@ const BuildingsAndFloorsPage: FC = () => {
     const name = newCameraName.trim();
     const code = newCameraCode.trim();
     const ip = newCameraIP.trim();
+    const rtspUrl = newCameraRtspUrl.trim();
+    const centralHost = newCameraCentralHost.trim();
 
     if (!name || !code || !ip) {
       alert("Nome, código e IP são obrigatórios.");
@@ -1008,6 +1032,8 @@ const BuildingsAndFloorsPage: FC = () => {
       floor_id: selectedFloorId,
       ip_address: ip,
       port: Number(newCameraPort) || 80,
+      rtsp_url: rtspUrl,
+      central_host: centralHost,
       username: newCameraUsername.trim() || "admin",
       password: newCameraPassword,
       manufacturer: newCameraManufacturer.trim(),
@@ -1028,6 +1054,8 @@ const BuildingsAndFloorsPage: FC = () => {
       setNewCameraCode("");
       setNewCameraIP("");
       setNewCameraPort("80");
+      setNewCameraRtspUrl("");
+      setNewCameraCentralHost("");
       setNewCameraUsername("admin");
       setNewCameraPassword("");
       setNewCameraManufacturer("Dahua");
@@ -1236,6 +1264,8 @@ const BuildingsAndFloorsPage: FC = () => {
                 code: newCameraCode,
                 ip: newCameraIP,
                 port: newCameraPort,
+                rtspUrl: newCameraRtspUrl,
+                centralHost: newCameraCentralHost,
                 username: newCameraUsername,
                 password: newCameraPassword,
                 manufacturer: newCameraManufacturer,
@@ -1255,6 +1285,12 @@ const BuildingsAndFloorsPage: FC = () => {
                     break;
                   case "port":
                     setNewCameraPort(value);
+                    break;
+                  case "rtspUrl":
+                    setNewCameraRtspUrl(value);
+                    break;
+                  case "centralHost":
+                    setNewCameraCentralHost(value);
                     break;
                   case "username":
                     setNewCameraUsername(value);

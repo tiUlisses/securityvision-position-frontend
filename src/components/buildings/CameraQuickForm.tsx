@@ -6,6 +6,8 @@ export type CameraField =
   | "code"
   | "ip"
   | "port"
+  | "rtspUrl"
+  | "centralHost"
   | "username"
   | "password"
   | "model";
@@ -16,6 +18,8 @@ interface CameraQuickFormProps {
     code: string;
     ip: string;
     port: string;
+    rtspUrl: string;
+    centralHost: string;
     username: string;
     password: string;
     manufacturer: string;
@@ -97,6 +101,26 @@ const CameraQuickForm: React.FC<CameraQuickFormProps> = ({
             className={inputClass}
             disabled={disabled}
             placeholder="80"
+          />
+        </Field>
+        <Field label="RTSP URL">
+          <input
+            type="text"
+            value={values.rtspUrl}
+            onChange={(e) => onFieldChange("rtspUrl", e.target.value)}
+            className={inputClass}
+            disabled={disabled}
+            placeholder="rtsp://usuario:senha@host/stream"
+          />
+        </Field>
+        <Field label="Host central (MTX)">
+          <input
+            type="text"
+            value={values.centralHost}
+            onChange={(e) => onFieldChange("centralHost", e.target.value)}
+            className={inputClass}
+            disabled={disabled}
+            placeholder="mtx.local"
           />
         </Field>
         <Field label="Usuário">
