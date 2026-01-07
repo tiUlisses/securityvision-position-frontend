@@ -15,7 +15,7 @@ import type {
 import { fetchMyIncidents } from "../api/incidents";
 import { listSupportGroups, type SupportGroupEntity } from "../api/supportGroups";
 import { useAuth } from "../contexts/AuthContext";
-import CameraEventsModal from "../components/dashboard/CameraEventsModal";
+import CameraStreamModal from "../components/dashboard/CameraStreamModal";
 import IncidentFromEventModal from "../components/dashboard/IncidentFromEventModal";
 
 type Gateway = Device;
@@ -1194,7 +1194,7 @@ export function DashboardPage() {
 
       {/* Modal eventos da câmera */}
       {cameraModalCamera && (
-        <CameraEventsModal
+        <CameraStreamModal
           isOpen={true}
           camera={cameraModalCamera}
           events={cameraModalEvents}
