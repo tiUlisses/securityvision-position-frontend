@@ -330,28 +330,40 @@ export default function CameraStreamModal({
     setStreamProbeStatus("probing");
     streamProbeAttemptRef.current = 0;
 
-    const probeStream = () => {
+    const probeStream = async () => {
       streamProbeAttemptRef.current += 1;
-      const img = new Image();
-      const probeUrl = new URL(streamUrl, window.location.href);
-      probeUrl.searchParams.set(
-        "ts",
-        `${Date.now()}-${streamProbeAttemptRef.current}`
+      const probeUrl = `${streamUrl}whep`;
+      const backoffDelay = Math.min(
+        streamProbeDelayMs * streamProbeAttemptRef.current,
+        streamProbeDelayMs * 4
       );
-      img.onload = () => {
-        setStreamProbeStatus("ready");
-      };
-      img.onerror = () => {
+
+      const scheduleRetry = () => {
         if (streamProbeAttemptRef.current < maxStreamProbeAttempts) {
           streamProbeTimeoutRef.current = window.setTimeout(
-            probeStream,
-            streamProbeDelayMs
+            () => void probeStream(),
+            backoffDelay
           );
         } else {
           setStreamProbeStatus("error");
         }
       };
-      img.src = probeUrl.toString();
+
+      try {
+        const response = await fetch(probeUrl, { method: "OPTIONS" });
+        if (response.ok) {
+          setStreamProbeStatus("ready");
+          return;
+        }
+        if (response.status === 404 || response.status === 503) {
+          scheduleRetry();
+          return;
+        }
+        scheduleRetry();
+      } catch (err) {
+        console.warn("Falha ao validar WHEP:", err);
+        scheduleRetry();
+      }
     };
 
     probeStream();
@@ -502,7 +514,7 @@ export default function CameraStreamModal({
                       />
                       {streamProbeStatus !== "ready" && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
-                          Aguardando disponibilidade do stream...
+                          Aguardando o WHEP ficar disponível...
                         </div>
                       )}
                       {streamProbeStatus === "ready" &&
