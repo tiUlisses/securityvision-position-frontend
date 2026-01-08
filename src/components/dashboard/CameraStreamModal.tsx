@@ -277,9 +277,11 @@ export default function CameraStreamModal({
           }).catch(() => {});
         });
       }
+      return true;
     } catch (err) {
       console.error("Erro ao iniciar WebRTC:", err);
       setWebrtcError(true);
+      return false;
     }
   };
 
@@ -355,14 +357,27 @@ export default function CameraStreamModal({
       return;
     }
 
-    void startWebRtcPlayback(streamUrl);
+    setStreamStartStatus("starting");
+    streamStartAttemptRef.current = 0;
 
-    return () => {
-      void stopWebRtcPlayback();
+    const scheduleStart = () => {
+      streamStartAttemptRef.current += 1;
+      streamStartTimeoutRef.current = window.setTimeout(async () => {
+        const started = await startWebRtcPlayback(streamUrl);
+        if (started) {
+          setStreamStartStatus("ready");
+          return;
+        }
+        if (streamStartAttemptRef.current < maxStreamStartAttempts) {
+          scheduleStart();
+          return;
+        }
+        setStreamStartStatus("error");
+      }, streamStartDelayMs);
     };
   }, [isOpen, streamUrl, streamProbeStatus]);
 
-  if (!isOpen) return null;
+    scheduleStart();
 
   const whepUrl = useMemo(() => {
     if (!streamUrl) return null;
