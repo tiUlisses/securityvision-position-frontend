@@ -375,9 +375,16 @@ export default function CameraStreamModal({
         setStreamStartStatus("error");
       }, streamStartDelayMs);
     };
-  }, [isOpen, streamUrl, streamProbeStatus]);
 
     scheduleStart();
+
+    return () => {
+      if (streamStartTimeoutRef.current) {
+        window.clearTimeout(streamStartTimeoutRef.current);
+        streamStartTimeoutRef.current = null;
+      }
+    };
+  }, [isOpen, streamUrl, streamProbeStatus]);
 
   const whepUrl = useMemo(() => {
     if (!streamUrl) return null;
