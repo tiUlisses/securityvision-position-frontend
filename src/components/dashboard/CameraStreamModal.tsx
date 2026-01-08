@@ -30,8 +30,8 @@ export default function CameraStreamModal({
   creatingIncident,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [streamStartStatus, setStreamStartStatus] = useState<
-    "idle" | "starting" | "ready" | "error"
+  const [streamProbeStatus, setStreamProbeStatus] = useState<
+    "idle" | "probing" | "ready" | "error"
   >("idle");
   const [webrtcError, setWebrtcError] = useState(false);
   const uplinkStartedRef = useRef(false);
@@ -39,11 +39,11 @@ export default function CameraStreamModal({
   const webrtcPcRef = useRef<RTCPeerConnection | null>(null);
   const webrtcVideoRef = useRef<HTMLVideoElement | null>(null);
   const webrtcPlayTimeoutRef = useRef<number | null>(null);
-  const streamStartTimeoutRef = useRef<number | null>(null);
-  const streamStartAttemptRef = useRef(0);
+  const streamProbeTimeoutRef = useRef<number | null>(null);
+  const streamProbeAttemptRef = useRef(0);
   const { toast } = useToast();
-  const maxStreamStartAttempts = 4;
-  const streamStartDelayMs = 2000;
+  const maxStreamProbeAttempts = 10;
+  const streamProbeDelayMs = 500;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -180,11 +180,11 @@ export default function CameraStreamModal({
 
   useEffect(() => {
     setWebrtcError(false);
-    setStreamStartStatus("idle");
-    streamStartAttemptRef.current = 0;
-    if (streamStartTimeoutRef.current) {
-      window.clearTimeout(streamStartTimeoutRef.current);
-      streamStartTimeoutRef.current = null;
+    setStreamProbeStatus("idle");
+    streamProbeAttemptRef.current = 0;
+    if (streamProbeTimeoutRef.current) {
+      window.clearTimeout(streamProbeTimeoutRef.current);
+      streamProbeTimeoutRef.current = null;
     }
   }, [streamUrl]);
 
@@ -306,11 +306,54 @@ export default function CameraStreamModal({
 
   useEffect(() => {
     if (!isOpen || !streamUrl) {
-      setStreamStartStatus("idle");
-      if (streamStartTimeoutRef.current) {
-        window.clearTimeout(streamStartTimeoutRef.current);
-        streamStartTimeoutRef.current = null;
+      setStreamProbeStatus("idle");
+      if (streamProbeTimeoutRef.current) {
+        window.clearTimeout(streamProbeTimeoutRef.current);
+        streamProbeTimeoutRef.current = null;
       }
+      return;
+    }
+
+    setStreamProbeStatus("probing");
+    streamProbeAttemptRef.current = 0;
+
+    const probeStream = () => {
+      streamProbeAttemptRef.current += 1;
+      const img = new Image();
+      const probeUrl = new URL(streamUrl, window.location.href);
+      probeUrl.searchParams.set(
+        "ts",
+        `${Date.now()}-${streamProbeAttemptRef.current}`
+      );
+      img.onload = () => {
+        setStreamProbeStatus("ready");
+      };
+      img.onerror = () => {
+        if (streamProbeAttemptRef.current < maxStreamProbeAttempts) {
+          streamProbeTimeoutRef.current = window.setTimeout(
+            probeStream,
+            streamProbeDelayMs
+          );
+        } else {
+          setStreamProbeStatus("error");
+        }
+      };
+      img.src = probeUrl.toString();
+    };
+
+    probeStream();
+
+    return () => {
+      if (streamProbeTimeoutRef.current) {
+        window.clearTimeout(streamProbeTimeoutRef.current);
+        streamProbeTimeoutRef.current = null;
+      }
+    };
+  }, [isOpen, streamUrl, maxStreamProbeAttempts, streamProbeDelayMs]);
+
+  useEffect(() => {
+    if (!isOpen || !streamUrl || streamProbeStatus !== "ready") {
+      void stopWebRtcPlayback();
       return;
     }
 
@@ -332,29 +375,9 @@ export default function CameraStreamModal({
         setStreamStartStatus("error");
       }, streamStartDelayMs);
     };
+  }, [isOpen, streamUrl, streamProbeStatus]);
 
     scheduleStart();
-
-    return () => {
-      if (streamStartTimeoutRef.current) {
-        window.clearTimeout(streamStartTimeoutRef.current);
-        streamStartTimeoutRef.current = null;
-      }
-    };
-  }, [isOpen, streamUrl]);
-
-  useEffect(() => {
-    if (!isOpen || !streamUrl || streamStartStatus !== "ready") {
-      void stopWebRtcPlayback();
-      return;
-    }
-
-    return () => {
-      void stopWebRtcPlayback();
-    };
-  }, [isOpen, streamUrl, streamStartStatus]);
-
-  if (!isOpen) return null;
 
   const whepUrl = useMemo(() => {
     if (!streamUrl) return null;
@@ -452,17 +475,17 @@ export default function CameraStreamModal({
                         muted
                         controls
                       />
-                      {streamStartStatus === "starting" && (
+                      {streamProbeStatus !== "ready" && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
-                          Preparando reprodução do stream...
+                          Aguardando disponibilidade do stream...
                         </div>
                       )}
-                      {streamStartStatus === "ready" && webrtcError && (
+                      {streamProbeStatus === "ready" && webrtcError && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
                           Não foi possível iniciar a reprodução WebRTC.
                         </div>
                       )}
-                      {streamStartStatus === "error" && (
+                      {streamProbeStatus === "error" && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
                           Não foi possível validar o stream no tempo esperado.
                         </div>
