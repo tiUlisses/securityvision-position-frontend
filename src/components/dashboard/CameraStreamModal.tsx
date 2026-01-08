@@ -32,12 +32,17 @@ export default function CameraStreamModal({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [streamError, setStreamError] = useState(false);
   const [webrtcError, setWebrtcError] = useState(false);
+  const [streamRetrySeed, setStreamRetrySeed] = useState(0);
   const uplinkStartedRef = useRef(false);
   const webrtcSessionUrlRef = useRef<string | null>(null);
   const webrtcPcRef = useRef<RTCPeerConnection | null>(null);
   const webrtcVideoRef = useRef<HTMLVideoElement | null>(null);
   const webrtcPlayTimeoutRef = useRef<number | null>(null);
+  const streamRetryTimeoutRef = useRef<number | null>(null);
+  const streamRetryCountRef = useRef(0);
   const { toast } = useToast();
+  const maxStreamRetries = 6;
+  const streamRetryDelayMs = 2000;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -172,9 +177,22 @@ export default function CameraStreamModal({
     return `https://${normalizedHost}/${normalizedPath}/`;
   }, [camera.central_media_mtx_ip, camera.central_path]);
 
+  const streamImgUrl = useMemo(() => {
+    if (!streamUrl) return null;
+    const url = new URL(streamUrl, window.location.href);
+    url.searchParams.set("ts", String(streamRetrySeed));
+    return url.toString();
+  }, [streamUrl, streamRetrySeed]);
+
   useEffect(() => {
     setStreamError(false);
     setWebrtcError(false);
+    setStreamRetrySeed(0);
+    streamRetryCountRef.current = 0;
+    if (streamRetryTimeoutRef.current) {
+      window.clearTimeout(streamRetryTimeoutRef.current);
+      streamRetryTimeoutRef.current = null;
+    }
   }, [streamUrl]);
 
   const startWebRtcPlayback = async (url: string) => {
@@ -306,6 +324,20 @@ export default function CameraStreamModal({
 
   if (!isOpen) return null;
 
+  const handleStreamError = () => {
+    if (streamRetryCountRef.current < maxStreamRetries) {
+      streamRetryCountRef.current += 1;
+      if (streamRetryTimeoutRef.current) {
+        window.clearTimeout(streamRetryTimeoutRef.current);
+      }
+      streamRetryTimeoutRef.current = window.setTimeout(() => {
+        setStreamRetrySeed((prev) => prev + 1);
+      }, streamRetryDelayMs);
+      return;
+    }
+    setStreamError(true);
+  };
+
   return (
     <Modal
       isOpen={true}
@@ -417,10 +449,10 @@ export default function CameraStreamModal({
                     </div>
                   ) : (
                     <img
-                      src={streamUrl}
+                      src={streamImgUrl || streamUrl}
                       alt="Stream da câmera"
                       className="h-[360px] w-full rounded-md border border-slate-800 bg-black object-contain"
-                      onError={() => setStreamError(true)}
+                      onError={handleStreamError}
                     />
                   )
                 ) : (
