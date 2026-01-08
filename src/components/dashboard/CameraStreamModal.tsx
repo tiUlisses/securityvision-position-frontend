@@ -33,17 +33,24 @@ export default function CameraStreamModal({
   const [streamProbeStatus, setStreamProbeStatus] = useState<
     "idle" | "probing" | "ready" | "error"
   >("idle");
+  const [streamStartStatus, setStreamStartStatus] = useState<
+    "idle" | "starting" | "ready" | "error"
+  >("idle");
   const [webrtcError, setWebrtcError] = useState(false);
   const uplinkStartedRef = useRef(false);
   const webrtcSessionUrlRef = useRef<string | null>(null);
   const webrtcPcRef = useRef<RTCPeerConnection | null>(null);
   const webrtcVideoRef = useRef<HTMLVideoElement | null>(null);
   const webrtcPlayTimeoutRef = useRef<number | null>(null);
+  const streamStartTimeoutRef = useRef<number | null>(null);
   const streamProbeTimeoutRef = useRef<number | null>(null);
+  const streamStartAttemptRef = useRef(0);
   const streamProbeAttemptRef = useRef(0);
   const { toast } = useToast();
   const maxStreamProbeAttempts = 10;
   const streamProbeDelayMs = 500;
+  const maxStreamStartAttempts = 6;
+  const streamStartDelayMs = 600;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -181,10 +188,16 @@ export default function CameraStreamModal({
   useEffect(() => {
     setWebrtcError(false);
     setStreamProbeStatus("idle");
+    setStreamStartStatus("idle");
     streamProbeAttemptRef.current = 0;
+    streamStartAttemptRef.current = 0;
     if (streamProbeTimeoutRef.current) {
       window.clearTimeout(streamProbeTimeoutRef.current);
       streamProbeTimeoutRef.current = null;
+    }
+    if (streamStartTimeoutRef.current) {
+      window.clearTimeout(streamStartTimeoutRef.current);
+      streamStartTimeoutRef.current = null;
     }
   }, [streamUrl]);
 
@@ -353,6 +366,11 @@ export default function CameraStreamModal({
 
   useEffect(() => {
     if (!isOpen || !streamUrl || streamProbeStatus !== "ready") {
+      setStreamStartStatus("idle");
+      if (streamStartTimeoutRef.current) {
+        window.clearTimeout(streamStartTimeoutRef.current);
+        streamStartTimeoutRef.current = null;
+      }
       void stopWebRtcPlayback();
       return;
     }
@@ -487,7 +505,21 @@ export default function CameraStreamModal({
                           Aguardando disponibilidade do stream...
                         </div>
                       )}
-                      {streamProbeStatus === "ready" && webrtcError && (
+                      {streamProbeStatus === "ready" &&
+                        streamStartStatus === "starting" && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
+                            Iniciando reprodução...
+                          </div>
+                        )}
+                      {streamProbeStatus === "ready" &&
+                        streamStartStatus === "error" && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
+                            Não foi possível iniciar a reprodução WebRTC.
+                          </div>
+                        )}
+                      {streamProbeStatus === "ready" &&
+                        streamStartStatus === "ready" &&
+                        webrtcError && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
                           Não foi possível iniciar a reprodução WebRTC.
                         </div>
