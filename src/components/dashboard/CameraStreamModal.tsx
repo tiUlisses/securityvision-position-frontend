@@ -30,19 +30,20 @@ export default function CameraStreamModal({
   creatingIncident,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [streamError, setStreamError] = useState(false);
+  const [streamStartStatus, setStreamStartStatus] = useState<
+    "idle" | "starting" | "ready" | "error"
+  >("idle");
   const [webrtcError, setWebrtcError] = useState(false);
-  const [streamRetrySeed, setStreamRetrySeed] = useState(0);
   const uplinkStartedRef = useRef(false);
   const webrtcSessionUrlRef = useRef<string | null>(null);
   const webrtcPcRef = useRef<RTCPeerConnection | null>(null);
   const webrtcVideoRef = useRef<HTMLVideoElement | null>(null);
   const webrtcPlayTimeoutRef = useRef<number | null>(null);
-  const streamRetryTimeoutRef = useRef<number | null>(null);
-  const streamRetryCountRef = useRef(0);
+  const streamStartTimeoutRef = useRef<number | null>(null);
+  const streamStartAttemptRef = useRef(0);
   const { toast } = useToast();
-  const maxStreamRetries = 6;
-  const streamRetryDelayMs = 2000;
+  const maxStreamStartAttempts = 4;
+  const streamStartDelayMs = 2000;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -177,21 +178,13 @@ export default function CameraStreamModal({
     return `https://${normalizedHost}/${normalizedPath}/`;
   }, [camera.central_media_mtx_ip, camera.central_path]);
 
-  const streamImgUrl = useMemo(() => {
-    if (!streamUrl) return null;
-    const url = new URL(streamUrl, window.location.href);
-    url.searchParams.set("ts", String(streamRetrySeed));
-    return url.toString();
-  }, [streamUrl, streamRetrySeed]);
-
   useEffect(() => {
-    setStreamError(false);
     setWebrtcError(false);
-    setStreamRetrySeed(0);
-    streamRetryCountRef.current = 0;
-    if (streamRetryTimeoutRef.current) {
-      window.clearTimeout(streamRetryTimeoutRef.current);
-      streamRetryTimeoutRef.current = null;
+    setStreamStartStatus("idle");
+    streamStartAttemptRef.current = 0;
+    if (streamStartTimeoutRef.current) {
+      window.clearTimeout(streamStartTimeoutRef.current);
+      streamStartTimeoutRef.current = null;
     }
   }, [streamUrl]);
 
@@ -284,9 +277,11 @@ export default function CameraStreamModal({
           }).catch(() => {});
         });
       }
+      return true;
     } catch (err) {
       console.error("Erro ao iniciar WebRTC:", err);
       setWebrtcError(true);
+      return false;
     }
   };
 
@@ -310,33 +305,61 @@ export default function CameraStreamModal({
   };
 
   useEffect(() => {
-    if (!isOpen || !streamUrl || !streamError) {
-      void stopWebRtcPlayback();
+    if (!isOpen || !streamUrl) {
+      setStreamStartStatus("idle");
+      if (streamStartTimeoutRef.current) {
+        window.clearTimeout(streamStartTimeoutRef.current);
+        streamStartTimeoutRef.current = null;
+      }
       return;
     }
 
-    void startWebRtcPlayback(streamUrl);
+    setStreamStartStatus("starting");
+    streamStartAttemptRef.current = 0;
+
+    const scheduleStart = () => {
+      streamStartAttemptRef.current += 1;
+      streamStartTimeoutRef.current = window.setTimeout(async () => {
+        const started = await startWebRtcPlayback(streamUrl);
+        if (started) {
+          setStreamStartStatus("ready");
+          return;
+        }
+        if (streamStartAttemptRef.current < maxStreamStartAttempts) {
+          scheduleStart();
+          return;
+        }
+        setStreamStartStatus("error");
+      }, streamStartDelayMs);
+    };
+
+    scheduleStart();
+
+    return () => {
+      if (streamStartTimeoutRef.current) {
+        window.clearTimeout(streamStartTimeoutRef.current);
+        streamStartTimeoutRef.current = null;
+      }
+    };
+  }, [isOpen, streamUrl]);
+
+  useEffect(() => {
+    if (!isOpen || !streamUrl || streamStartStatus !== "ready") {
+      void stopWebRtcPlayback();
+      return;
+    }
 
     return () => {
       void stopWebRtcPlayback();
     };
-  }, [isOpen, streamUrl, streamError]);
+  }, [isOpen, streamUrl, streamStartStatus]);
 
   if (!isOpen) return null;
 
-  const handleStreamError = () => {
-    if (streamRetryCountRef.current < maxStreamRetries) {
-      streamRetryCountRef.current += 1;
-      if (streamRetryTimeoutRef.current) {
-        window.clearTimeout(streamRetryTimeoutRef.current);
-      }
-      streamRetryTimeoutRef.current = window.setTimeout(() => {
-        setStreamRetrySeed((prev) => prev + 1);
-      }, streamRetryDelayMs);
-      return;
-    }
-    setStreamError(true);
-  };
+  const whepUrl = useMemo(() => {
+    if (!streamUrl) return null;
+    return `${streamUrl}whep`;
+  }, [streamUrl]);
 
   return (
     <Modal
@@ -420,50 +443,42 @@ export default function CameraStreamModal({
             <div className="flex flex-1 flex-col gap-3 px-3 py-3">
               <div className="rounded-lg border border-slate-800 bg-black/50 p-2">
                 {streamUrl ? (
-                  streamError ? (
-                    <div className="flex h-[360px] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-700 px-4 text-center text-[11px] text-slate-400">
-                      <span>Não foi possível carregar o preview do stream.</span>
-                      {webrtcError ? (
-                        <span className="text-[10px] text-slate-500">
-                          A reprodução WebRTC também falhou.
-                        </span>
-                      ) : (
-                        <div className="w-full overflow-hidden rounded-md border border-slate-800 bg-black">
-                          <video
-                            ref={webrtcVideoRef}
-                            className="h-[320px] w-full bg-black"
-                            playsInline
-                            muted
-                            controls
-                          />
+                  <div className="flex h-[360px] flex-col items-center justify-center gap-2 rounded-md border border-slate-800 bg-black/40 px-4 text-center text-[11px] text-slate-400">
+                    <div className="relative h-[320px] w-full overflow-hidden rounded-md border border-slate-800 bg-black">
+                      <video
+                        ref={webrtcVideoRef}
+                        className="h-[320px] w-full bg-black"
+                        playsInline
+                        muted
+                        controls
+                      />
+                      {streamStartStatus === "starting" && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
+                          Preparando reprodução do stream...
                         </div>
                       )}
-                      <a
-                        href={streamUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sky-400 hover:text-sky-300"
-                      >
-                        Abrir stream em nova aba
-                      </a>
+                      {streamStartStatus === "ready" && webrtcError && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
+                          Não foi possível iniciar a reprodução WebRTC.
+                        </div>
+                      )}
+                      {streamStartStatus === "error" && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[11px] text-slate-300">
+                          Não foi possível validar o stream no tempo esperado.
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <img
-                      src={streamImgUrl || streamUrl}
-                      alt="Stream da câmera"
-                      className="h-[360px] w-full rounded-md border border-slate-800 bg-black object-contain"
-                      onError={handleStreamError}
-                    />
-                  )
+                    {whepUrl && (
+                      <div className="text-[10px] text-slate-500">
+                        Endpoint WHEP:{" "}
+                        <span className="break-all text-slate-300">{whepUrl}</span>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex h-[360px] items-center justify-center rounded-md border border-dashed border-slate-700 text-[11px] text-slate-400">
                     Stream indisponível. Configure o host e o caminho do central para habilitar o
                     preview.
-                  </div>
-                )}
-                {streamUrl && (
-                  <div className="mt-2 text-[10px] text-slate-500">
-                    URL do stream: <span className="break-all text-slate-300">{streamUrl}</span>
                   </div>
                 )}
               </div>
